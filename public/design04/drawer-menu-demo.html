@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>側邊滑出櫃桶選單（Drawer Menu）· 15個新世代範例</title>
+<style>
+:root{
+  --bg:#0b0e14; --panel:#12161f; --panel2:#171c28; --accent:#5b8cff; --accent2:#8b5cf6;
+  --text:#e8ecf5; --sub:#8a93a6; --ok:#34d399; --warn:#fbbf24; --danger:#f87171;
+  --radius:20px; --border:#1e2330;
+}
+*{box-sizing:border-box;}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang HK","Microsoft JhengHei",sans-serif;background:linear-gradient(160deg,#0b0e14,#11121a 40%,#0b0e14);color:var(--text);}
+header.hero{padding:50px 24px 34px;text-align:center;max-width:900px;margin:0 auto;}
+header.hero h1{font-size:clamp(22px,4vw,34px);margin:0 0 10px;background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent;}
+header.hero p{color:var(--sub);font-size:14.5px;line-height:1.8;margin:0 auto;max-width:700px;}
+.section-title{max-width:1200px;margin:52px auto 18px;padding:0 24px;display:flex;align-items:baseline;gap:12px;}
+.section-title h2{font-size:19px;margin:0;}
+.section-title span{color:var(--sub);font-size:12.5px;}
+.grid{max-width:1200px;margin:0 auto;padding:0 24px;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:18px;display:flex;flex-direction:column;gap:12px;}
+.card h3{margin:0;font-size:14.5px;display:flex;align-items:center;gap:8px;}
+.badge{font-size:10.5px;padding:2px 8px;border-radius:8px;background:rgba(91,140,255,.15);color:var(--accent);font-weight:600;}
+.card p.desc{margin:0;color:var(--sub);font-size:12px;line-height:1.6;}
+.stage{position:relative;height:260px;background:#05070c;border-radius:14px;overflow:hidden;border:1px solid #1c2130;}
+.controls{display:flex;gap:8px;flex-wrap:wrap;}
+button.trigger{background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#fff;padding:7px 14px;border-radius:9px;font-size:12px;cursor:pointer;font-weight:600;}
+button.trigger.secondary{background:var(--panel2);border:1px solid #2a3040;color:var(--text);}
+button.trigger:active{transform:scale(.96);}
+footer{text-align:center;padding:50px 24px;color:var(--sub);font-size:12px;}
+
+/* ===== shared drawer-in-stage layout ===== */
+.demo-app{position:absolute;inset:0;overflow:hidden;}
+.demo-topbar{height:32px;background:#151a26;display:flex;align-items:center;justify-content:space-between;padding:0 10px;font-size:10.5px;color:var(--sub);position:relative;z-index:3;}
+.demo-main{position:absolute;inset:32px 0 0 0;background:#0e111a;padding:10px;font-size:10.5px;color:var(--sub);}
+.hbg{width:18px;height:13px;position:relative;cursor:pointer;}
+.hbg span{position:absolute;left:0;width:100%;height:2px;background:var(--text);border-radius:2px;transition:.3s;}
+.hbg span:nth-child(1){top:0;} .hbg span:nth-child(2){top:5.5px;} .hbg span:nth-child(3){top:11px;}
+.hbg.active span:nth-child(1){transform:translateY(5.5px) rotate(45deg);}
+.hbg.active span:nth-child(2){opacity:0;}
+.hbg.active span:nth-child(3){transform:translateY(-5.5px) rotate(-45deg);}
+.overlay{position:absolute;inset:32px 0 0 0;background:rgba(0,0,0,.5);opacity:0;pointer-events:none;transition:opacity .3s;z-index:1;}
+.overlay.show{opacity:1;pointer-events:auto;}
+
+/* drawer base */
+.drawer{position:absolute;top:32px;bottom:0;background:#171c28;z-index:2;transition:transform .32s cubic-bezier(.4,0,.2,1);padding:12px;font-size:11px;overflow-y:auto;}
+.drawer-header{font-weight:700;font-size:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;}
+.detail-row{padding:6px 0;border-bottom:1px solid #232a3d;display:flex;justify-content:space-between;font-size:10.5px;color:var(--sub);}
+.detail-row b{color:var(--text);}
+.section-accordion{margin-top:8px;}
+.acc-head{background:#1c2334;padding:7px 8px;border-radius:6px;font-size:10.5px;display:flex;justify-content:space-between;cursor:pointer;align-items:center;}
+.acc-body{max-height:0;overflow:hidden;transition:max-height .3s ease;font-size:10px;color:var(--sub);padding:0 8px;}
+.acc-arrow{transition:transform .3s;}
+.resize-handle{position:absolute;top:0;bottom:0;width:6px;cursor:ew-resize;z-index:4;background:transparent;}
+.resize-handle:hover{background:rgba(91,140,255,.3);}
+.resize-handle-h{position:absolute;left:0;right:0;height:6px;cursor:ns-resize;z-index:4;background:transparent;}
+.resize-handle-h:hover{background:rgba(91,140,255,.3);}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <h1>側邊滑出櫃桶選單<br>Drawer Menu · 15個新世代範例</h1>
+  <p>純 HTML／CSS／原生 JavaScript 實作，涵蓋放置 details 資料的抽屜、可拖曳拉大拉小的櫃桶面板、多層折疊結構，適合 CRM 客戶詳情、設定面板、篩選器等場景直接複製使用。</p>
+</header>
+
+<div class="section-title"><h2>① 基礎方向抽屜（含 Details 資料）</h2><span>Directional Drawer</span></div>
+<div class="grid" id="g1"></div>
+
+<div class="section-title"><h2>② 可拖曳調整大小的櫃桶</h2><span>Resizable Drawer</span></div>
+<div class="grid" id="g2"></div>
+
+<div class="section-title"><h2>③ 多層折疊 / 巢狀櫃桶結構</h2><span>Nested Accordion Drawer</span></div>
+<div class="grid" id="g3"></div>
+
+<div class="section-title"><h2>④ 新世代進階手勢與樣式</h2><span>Advanced Gesture &amp; Style</span></div>
+<div class="grid" id="g4"></div>
+
+<footer>Terrence_PRO · Drawer Menu 完整範例庫 · 純 Vanilla JS 實作，可直接嵌入 AI CRM 專案</footer>
+
+<script>
+function card(container,title,badge,desc,stageHTML,controlsHTML){
+  const el=document.createElement('div');
+  el.className='card';
+  el.innerHTML=`<h3>${title}<span class="badge">${badge}</span></h3><p class="desc">${desc}</p><div class="stage">${stageHTML}</div><div class="controls">${controlsHTML}</div>`;
+  container.appendChild(el);
+  return el;
+}
+const g1=document.getElementById('g1'), g2=document.getElementById('g2'), g3=document.getElementById('g3'), g4=document.getElementById('g4');
+
+/* ============================================================
+   G1: 基礎方向抽屜 (5)
+============================================================ */
+// 1 左側抽屜
+card(g1,'左側滑出抽屜','推薦','經典左側 Drawer，內含客戶 details 資料列表，點擊漢堡圖示開合，背景出現半透明遮罩。',
+`<div class="demo-app" id="d1">
+  <div class="demo-topbar"><div class="hbg" id="d1hbg" onclick="toggleDrawer('d1')"><span></span><span></span><span></span></div><div>AI CRM</div><div></div></div>
+  <div class="demo-main">主畫面內容區</div>
+  <div class="overlay" id="d1overlay" onclick="toggleDrawer('d1')"></div>
+  <div class="drawer" id="d1drawer" style="left:0;width:70%;transform:translateX(-100%);">
+    <div class="drawer-header">客戶詳情 <span style="cursor:pointer;color:var(--sub);" onclick="toggleDrawer('d1')">✕</span></div>
+    <div class="detail-row"><span>公司名稱</span><b>ABC 有限公司</b></div>
+    <div class="detail-row"><span>負責人</span><b>陳先生</b></div>
+    <div class="detail-row"><span>成交金額</span><b>HK$128,000</b></div>
+    <div class="detail-row"><span>狀態</span><b style="color:var(--ok);">已成交</b></div>
+  </div>
+</div>`,
+`<button class="trigger secondary" onclick="toggleDrawer('d1')">開合抽屜</button>`);
+
+// 2 右側抽屜
+card(g1,'右側滑出抽屜','常用','右側抽屜常用於「詳情面板」或「篩選條件」，適合右手單手操作習慣。',
+`<div class="demo-app" id="d2">
+  <div class="demo-topbar"><div></div><div>商機列表</div><div class="hbg" id="d2hbg" onclick="toggleDrawer('d2')"><span></span><span></span><span></span></div></div>
+  <div class="demo-main">主畫面內容區</div>
+  <div class="overlay" id="d2overlay" onclick="toggleDrawer('d2')"></div>
+  <div class="drawer" id="d2drawer" style="right:0;width:72%;transform:translateX(100%);">
+    <div class="drawer-header">商機詳情</div>
+    <div class="detail-row"><span>商機名稱</span><b>年度續約案</b></div>
+    <div class="detail-row"><span>階段</span><b>提案中</b></div>
+    <div class="detail-row"><span>預計金額</span><b>HK$430,000</b></div>
+    <div class="detail-row"><span>結案日</span><b>2026-09-30</b></div>
+  </div>
+</div>`,
+`<button class="trigger secondary" onclick="toggleDrawer('d2')">開合抽屜</button>`);
+
+// 3 底部抽屜 bottom sheet with details
+card(g1,'底部滑出抽屜','推薦','底部 Bottom Sheet 承載 details 資料，符合行動裝置單手觸及範圍，適合快速查看摘要。',
+`<div class="demo-app" id="d3" style="position:relative;">
+  <div class="demo-topbar"><div></div><div>訂單管理</div><div></div></div>
+  <div class="demo-main">主畫面內容區</div>
+  <div class="overlay" id="d3overlay" onclick="toggleDrawer('d3')"></div>
+  <div class="drawer" id="d3drawer" style="left:0;right:0;top:auto;bottom:0;height:60%;width:auto;border-radius:16px 16px 0 0;transform:translateY(100%);transition:transform .32s cubic-bezier(.34,1.56,.64,1);">
+    <div style="width:36px;height:4px;background:#333c52;border-radius:2px;margin:0 auto 10px;"></div>
+    <div class="drawer-header">訂單 #A2291</div>
+    <div class="detail-row"><span>產品</span><b>NetApp AFF A400</b></div>
+    <div class="detail-row"><span>數量</span><b>2 台</b></div>
+    <div class="detail-row"><span>交期</span><b>4-6 週</b></div>
+  </div>
+</div>`,
+`<button class="trigger secondary" onclick="toggleDrawer('d3')">開合抽屜</button>`);
+
+// 4 push content drawer (main content shifts, not overlay)
+card(g1,'推移式抽屜（非覆蓋）','進階','抽屜打開時主內容整體向右推移而非覆蓋，適合桌面／平板寬螢幕的常駐導航。',
+`<div class="demo-app" id="d4" style="overflow:hidden;">
+  <div class="demo-topbar" style="position:relative;z-index:3;"><div class="hbg" id="d4hbg" onclick="pushDrawer()"><span></span><span></span><span></span></div><div>AI CRM</div><div></div></div>
+  <div id="d4wrap" style="position:absolute;inset:32px 0 0 0;transition:transform .32s cubic-bezier(.4,0,.2,1);display:flex;">
+    <div class="drawer" id="d4drawer" style="position:relative;top:0;bottom:0;width:65%;flex-shrink:0;transform:translateX(-100%);margin-left:-65%;">
+      <div class="drawer-header">導航選單</div>
+      <div class="detail-row"><span>客戶管理</span></div>
+      <div class="detail-row"><span>商機追蹤</span></div>
+      <div class="detail-row"><span>AI 洞察</span></div>
+    </div>
+    <div class="demo-main" style="position:relative;flex:1;">主內容區（會被推移）</div>
+  </div>
+</div>`,
+`<button class="trigger secondary" onclick="pushDrawer()">開合推移抽屜</button>`);
+
+// 5 details list with expandable rows inside drawer
+card(g1,'內含可展開 Details 列表','推薦','抽屜內每筆資料使用原生 &lt;details&gt; 標籤，點擊即展開更多欄位，無需額外 JS 控制單項開合。',
+`<div class="demo-app" id="d5">
+  <div class="demo-topbar"><div class="hbg" id="d5hbg" onclick="toggleDrawer('d5')"><span></span><span></span><span></span></div><div>客戶總覽</div><div></div></div>
+  <div class="demo-main">主畫面內容區</div>
+  <div class="overlay" id="d5overlay" onclick="toggleDrawer('d5')"></div>
+  <div class="drawer" id="d5drawer" style="left:0;width:75%;transform:translateX(-100%);">
+    <div class="drawer-header">客戶清單</div>
+    <details style="margin-bottom:6px;"><summary style="cursor:pointer;font-size:11px;color:var(--text);">ABC 有限公司</summary>
+      <div class="detail-row"><span>電話</span><b>2345-6789</b></div>
+      <div class="detail-row"><span>Email</span><b>info@abc.com</b></div>
+    </details>
+    <details><summary style="cursor:pointer;font-size:11px;color:var(--text);">XYZ 集團</summary>
+      <div class="detail-row"><span>電話</span><b>2987-6543</b></div>
+      <div class="detail-row"><span>Email</span><b>hello@xyz.com</b></div>
+    </details>
+  </div>
+</div>`,
+`<button class="trigger secondary" onclick="toggleDrawer('d5')">開合抽屜</button>`);
+
+/* ============================================================
+   G2: 可拖曳調整大小的櫃桶 (5)
+============================================================ */
+// 6 horizontal resizable drawer (drag right edge)
+card(g2,'水平拖曳調整寬度','推薦','抽屜右側邊緣提供拖曳把手，用戶可即時調整抽屜寬度，符合桌面／平板混合使用情境。',
+`<div class="demo-app" id="d6">
+  <div class="demo-topbar"><div class="hbg" id="d6hbg" onclick="toggleDrawer('d6')"><span></span><span></span><span></span></div><div>可調整寬度</div><div></div></div>
+  <div class="demo-main">主畫面內容區</div>
+  <div class="overlay" id="d6overlay" onclick="toggleDrawer('d6')"></div>
+  <div class="drawer" id="d6drawer" style="left:0;width:60%;transform:translateX(-100%);">
+    <div class="drawer-header">拖曳右邊緣調整寬度</div>
+    <div class="detail-row"><span>寛度</span><b id="d6width">60%</b></div>
+    <div class="resize-handle" id="d6handle" style="right:-3px;"></div>
+  </div>
+</div>`,
+`<button class="trigger secondary" onclick="toggleDrawer('d6')">開合抽屜</button>`);
+
+// 7 vertical resizable bottom sheet (drag top edge)
+card(g2,'垂直拖曳調整高度','推薦','底部抽屜頂部邊緣可拖曳調整高度，類似 Google Maps 底部資訊卡的手勢邏輯。',
+`<div class="demo-app" id="d7" style="position:relative;">
+  <div class="demo-topbar"><div></div><div>可調整高度</div><div></div></div>
+  <div class="demo-main">主畫面內容區</div>
+  <div class="overlay" id="d7overlay" onclick="toggleDrawer('d7')"></div>
+  <div class="drawer" id="d7drawer" style="left:0;right:0;top:auto;bottom:0;height:45%;width:auto;border-radius:16px 16px 0 0;transform:translateY(100%);transition:transform .32s cubic-bezier(.34,1.56,.64,1);">
+    <div class="resize-handle-h" id="d7handle" style="top:-3px;"></div>
+    <div style="width:36px;height:4px;background:#333c52;border-radius:2px;margin:0 auto 10px;"></div>
+    <div class="drawer-header">拖曳頂部調整高度</div>
+    <div class="detail-row"><span>高度</span><b id="d7height">45%</b></div>
+  </div>
+</div>`,
+`<button class="trigger secondary" onclick="toggleDrawer('d7')">開合抽屜</button>`);
+
+// 8 min/max toggle drawer (snap points)
+card(g2,'快照點縮放（Snap Points）','進階','拖曳放開後自動吸附至最小／中等／最大三個預設高度，而非任意停留，提升操作確定性。',
+`<div class="demo-app" id="d8" style="position:relative;">
+  <div class="demo-topbar"><div></div><div>Snap Points</div><div></div></div>
+  <div class="demo-main">主畫面內容區</div>
+  <div class="overlay" id="d8overlay" onclick="toggleDrawer('d8')"></div>
+  <div class="drawer" id="d8drawer" style="left:0;right:0;top:auto;bottom:0;height:20%;width:auto;border-radius:16px 16px 0 0;transform:translateY(100%);transition:height .3s cubic-bezier(.34,1.56,.64,1),transform .32s cubic-bezier(.34,1.56,.64,1);">
+    <div style="width:36px;height:4px;background:#333c52;border-radius:2px;margin:0 auto 10px;"></div>
+    <div class="drawer-header">拖曳並放開自動吸附</div>
+    <div class="detail-row"><span>目前高度</span><b id="d8snap">20%</b></div>
+  </div>
+</div>`,
+`<button class="trigger secondary" onclick="toggleDrawer('d8')">開啟</button><button class="trigger secondary" onclick="snapTo(20)">小</button><button class="trigger secondary" onclick="snapTo(50)">中</button><button class="trigger secondary" onclick="snapTo(85)">大</button>`);
+
+// 9 double-click to maximize drawer
+card(g2,'雙擊最大化 / 還原','特效','雙擊抽屜標題列即可在「常規大小」與「全螢幕」之間切換，適合需要臨時檢視完整資料的情境。',
+`<div class="demo-app" id="d9">
+  <div class="demo-topbar"><div class="hbg" id="d9hbg" onclick="toggleDrawer('d9')"><span></span><span></span><span></span></div><div>雙擊最大化</div><div></div></div>
+  <div class="demo-main">主畫面內容區</div>
+  <div class="overlay" id="d9overlay" onclick="toggleDrawer('d9')"></div>
+  <div class="drawer" id="d9drawer" style="left:0;width:65%;transform:translateX(-100%);transition:transform .32s cubic-bezier(.4,0,.2,1),width .3s ease;">
+    <div class="drawer-header" ondblclick="toggleMaximize('d9')" style="cursor:pointer;">雙擊此處最大化 ⤢</div>
+    <div class="detail-row"><span>狀態</span><b id="d9state">常規大小</b></div>
+  </div>
+</div>`,
+`<button class="trigger secondary" onclick="toggleDrawer('d9')">開合抽屜</button>`);
+
+// 10 resizable + collapsible panel inside drawer (nested drawer/bucket)
+card(g2,'抽屜內巢狀可縮放面板','進階','抽屜內部再嵌入一個可獨立拖曳調整高度的資料面板（櫃桶內的櫃桶），適合複雜 details 分區顯示。',
+`<div class="demo-app" id="d10">
+  <div class="demo-topbar"><div class="hbg" id="d10hbg" onclick="toggleDrawer('d10')"><span></span><span></span><span></span></div><div>巢狀櫃桶</div><div></div></div>
+  <div class="demo-main">主畫面內容區</div>
+  <div class="overlay" id="d10overlay" onclick="toggleDrawer('d10')"></div>
+  <div class="drawer" id="d10drawer" style="left:0;width:75%;transform:translateX(-100%);display:flex;flex-direction:column;">
+    <div class="drawer-header">客戶資料</div>
+    <div class="detail-row"><span>公司</span><b>ABC 有限公司</b></div>
+    <div id="d10panel" style="position:relative;margin-top:8px;height:80px;background:#1c2334;border-radius:8px;overflow:hidden;transition:height .25s ease;">
+      <div class="resize-handle-h" id="d10handle" style="top:-3px;background:rgba(91,140,255,.15);"></div>
+      <div style="padding:8px;font-size:10px;color:var(--sub);">內部子面板：交易紀錄（拖曳頂部調整高度）</div>
+    </div>
+  </div>
+</div>`,
+`<button class="trigger secondary" onclick="toggleDrawer('d10')">開合抽屜</button>`);
+
+/* ============================================================
+   G3: 多層折疊 / 巢狀櫃桶結構 (5)
+============================================================ */
+// 11 accordion single-open
+card(g3,'單一展開手風琴 Accordion','推薦','抽屜內多個區塊以手風琴方式呈現，展開一項時自動收合其他項，保持畫面精簡。',
+`<div class="demo-app" id="d11">
+  <div class="demo-topbar"><div class="hbg" id="d11hbg" onclick="toggleDrawer('d11')"><span></span><span></span><span></span></div><div>Accordion</div><div></div></div>
+  <div class="demo-main">主畫面內容區</div>
+  <div class="overlay" id="d11overlay" onclick="toggleDrawer('d11')"></div>
+  <div class="drawer" id="d11drawer" style="left:0;width:78%;transform:translateX(-100%);">
+    <div class="drawer-header">客戶檔案</div>
+    <div class="section-accordion" data-group="acc11">
+      <div class="acc-head" onclick="accordionToggle(this,'acc11')">基本資料<span class="acc-arrow">▾</span></div>
+      <div class="acc-body"><div class="detail-row"><span>姓名</span><b>陳先生</b></div><div class="detail-row"><span>電話</span><b>9123-4567</b></div></div>
+    </div>
+    <div class="section-accordion" data-group="acc11">
+      <div class="acc-head" onclick="accordionToggle(this,'acc11')">交易紀錄<span class="acc-arrow">▾</span></div>
+      <div class="acc-body"><div class="detail-row"><span>2026-05</span><b>HK$50,000</b></div></div>
+    </div>
+    <div class="section-accordion" data-group="acc11">
+      <div class="acc-head" onclick="accordionToggle(this,'acc11')">備註<span class="acc-arrow">▾</span></div>
+      <div class="acc-body"><div class="detail-row"><span>近況</span><b>持續跟進中</b></div></div>
+    </div>
+  </div>
+</div>`,
+`<button class="trigger secondary" onclick="toggleDrawer('d11')">開合抽屜</button>`);
+
+// 12 multi-open accordion
+card(g3,'多項可同時展開折疊區','常用','允許多個區塊同時展開，適合需要跨區塊比對資料的情境，不強制單一展開限制。',
+`<div class="demo-app" id="d12">
+  <div class="demo-topbar"><div class="hbg" id="d12hbg" onclick="toggleDrawer('d12')"><span></span><span></span><span></span></div><div>多項展開</div><div></div></div>
+  <div class="demo-main">主畫面內容區</div>
+  <div class="overlay" id="d12overlay" onclick="toggleDrawer('d12')"></div>
+  <div class="drawer" id="d12drawer" style="left:0;width:78%;transform:translateX(-100%);">
+    <div class="drawer-header">商機分區</div>
+    <div class="section-accordion"><div class="acc-head" onclick="accordionToggleMulti(this)">提案內容<span class="acc-arrow">▾</span></div><div class="acc-body"><div class="detail-row"><span>方案</span><b>企業版</b></div></div></div>
+    <div class="section-accordion"><div class="acc-head" onclick="accordionToggleMulti(this)">競爭對手<span class="acc-arrow">▾</span></div><div class="acc-body"><div class="detail-row"><span>對手</span><b>Vendor B</b></div></div></div>
+  </div>
+</div>`,
+`<button class="trigger secondary" onclick="toggleDrawer('d12')">開合抽屜</button>`);
+
+// 13 nested two-level accordion
+card(g3,'兩層巢狀折疊結構','進階','父層折疊區內再包含子層折疊項目，適合分類 → 子分類的複雜 details 資料架構。',
+`<div class="demo-app" id="d13">
+  <div class="demo-topbar"><div class="hbg" id="d13hbg" onclick="toggleDrawer('d13')"><span></span><span></span><span></span></div><div>巢狀折疊</div><div></div></div>
+  <div class="demo-main">主畫面內容區</div>
+  <div class="overlay" id="d13overlay" onclick="toggleDrawer('d13')"></div>
+  <div class="drawer" id="d13drawer" style="left:0;width:80%;transform:translateX(-100%);">
+    <div class="drawer-header">系統設定</div>
+    <div class="section-accordion"><div class="acc-head" onclick="accordionToggleMulti(this)">安全性設定<span class="acc-arrow">▾</span></div>
+      <div class="acc-body">
+        <div class="section-accordion" style="margin-top:4px;"><div class="acc-head" style="background:#232b42;" onclick="accordionToggleMulti(this);event.stopPropagation();">雙重驗證<span class="acc-arrow">▾</span></div><div class="acc-body"><div class="detail-row"><span>狀態</span><b style="color:var(--ok);">已啟用</b></div></div></div>
+        <div class="section-accordion" style="margin-top:4px;"><div class="acc-head" style="background:#232b42;" onclick="accordionToggleMulti(this);event.stopPropagation();">IP 白名單<span class="acc-arrow">▾</span></div><div class="acc-body"><div class="detail-row"><span>數量</span><b>3 條規則</b></div></div></div>
+      </div>
+    </div>
+  </div>
+</div>`,
+`<button class="trigger secondary" onclick="toggleDrawer('d13')">開合抽屜</button>`);
+
+// 14 tabs inside drawer
+card(g3,'抽屜內分頁切換 Tabs','常用','抽屜頂部提供 Tab 切換不同資料視圖（總覽／歷史／附件），比單一長列表更易導航。',
+`<div class="demo-app" id="d14">
+  <div class="demo-topbar"><div class="hbg" id="d14hbg" onclick="toggleDrawer('d14')"><span></span><span></span><span></span></div><div>Tabs 抽屜</div><div></div></div>
+  <div class="demo-main">主畫面內容區</div>
+  <div class="overlay" id="d14overlay" onclick="toggleDrawer('d14')"></div>
+  <div class="drawer" id="d14drawer" style="left:0;width:80%;transform:translateX(-100%);">
+    <div class="drawer-header">客戶檔案</div>
+    <div style="display:flex;gap:4px;margin-bottom:8px;" id="d14tabs">
+      <div class="d14tab active" onclick="switchTab(this,0)" style="padding:4px 10px;font-size:10px;border-radius:6px;background:var(--accent);cursor:pointer;">總覽</div>
+      <div class="d14tab" onclick="switchTab(this,1)" style="padding:4px 10px;font-size:10px;border-radius:6px;background:#1c2334;cursor:pointer;">歷史</div>
+      <div class="d14tab" onclick="switchTab(this,2)" style="padding:4px 10px;font-size:10px;border-radius:6px;background:#1c2334;cursor:pointer;">附件</div>
+    </div>
+    <div id="d14panel0" class="d14panel"><div class="detail-row"><span>公司</span><b>ABC 有限公司</b></div></div>
+    <div id="d14panel1" class="d14panel" style="display:none;"><div class="detail-row"><span>上次聯絡</span><b>2026-07-20</b></div></div>
+    <div id="d14panel2" class="d14panel" style="display:none;"><div class="detail-row"><span>檔案</span><b>報價單.pdf</b></div></div>
+  </div>
+</div>`,
+`<button class="trigger secondary" onclick="toggleDrawer('d14')">開合抽屜</button>`);
+
+// 15 draggable reorder sections within drawer (long-press handle)
+card(g3,'可拖曳排序的區塊櫃桶','特效','抽屜內每個資料區塊都有拖曳把手，長按後可上下拖曳重新排列顯示順序，個人化資料檢視優先度。',
+`<div class="demo-app" id="d15">
+  <div class="demo-topbar"><div class="hbg" id="d15hbg" onclick="toggleDrawer('d15')"><span></span><span></span><span></span></div><div>拖曳排序櫃桶</div><div></div></div>
+  <div class="demo-main">主畫面內容區</div>
+  <div class="overlay" id="d15overlay" onclick="toggleDrawer('d15')"></div>
+  <div class="drawer" id="d15drawer" style="left:0;width:80%;transform:translateX(-100%);">
+    <div class="drawer-header">拖曳 ⠿ 把手排序</div>
+    <div id="d15list" style="display:flex;flex-direction:column;gap:6px;">
+      <div class="d15row" draggable="true" style="background:#1c2334;padding:8px;border-radius:8px;font-size:10.5px;cursor:grab;">⠿ 基本資料</div>
+      <div class="d15row" draggable="true" style="background:#1c2334;padding:8px;border-radius:8px;font-size:10.5px;cursor:grab;">⠿ 交易紀錄</div>
+      <div class="d15row" draggable="true" style="background:#1c2334;padding:8px;border-radius:8px;font-size:10.5px;cursor:grab;">⠿ 備註</div>
+    </div>
+  </div>
+</div>`,
+`<button class="trigger secondary" onclick="toggleDrawer('d15')">開合抽屜</button>`);
+
+/* ============================================================
+   JS LOGIC
+============================================================ */
+function toggleDrawer(id){
+  const drawer=document.getElementById(id+'drawer');
+  const overlay=document.getElementById(id+'overlay');
+  const hbg=document.getElementById(id+'hbg');
+  const isBottom = drawer.style.bottom==='0px' || getComputedStyle(drawer).bottom==='0px';
+  const openState = drawer.dataset.open === '1';
+  if(openState){
+    drawer.style.transform = isBottom ? 'translateY(100%)' : (drawer.style.right==='0px' ? 'translateX(100%)' : 'translateX(-100%)');
+    if(overlay) overlay.classList.remove('show');
+    if(hbg) hbg.classList.remove('active');
+    drawer.dataset.open='0';
+  } else {
+    drawer.style.transform = 'translate(0,0)';
+    if(overlay) overlay.classList.add('show');
+    if(hbg) hbg.classList.add('active');
+    drawer.dataset.open='1';
+  }
+}
+
+function pushDrawer(){
+  const wrap=document.getElementById('d4wrap');
+  const hbg=document.getElementById('d4hbg');
+  const open = wrap.dataset.open==='1';
+  wrap.style.transform = open ? 'translateX(0)' : 'translateX(65%)';
+  hbg.classList.toggle('active');
+  wrap.dataset.open = open ? '0':'1';
+}
+
+/* resize: horizontal drag (#6) */
+(function(){
+  const handle=document.getElementById('d6handle');
+  const drawer=document.getElementById('d6drawer');
+  const label=document.getElementById('d6width');
+  let dragging=false;
+  handle.addEventListener('mousedown',e=>{dragging=true;e.preventDefault();});
+  window.addEventListener('mousemove',e=>{
+    if(!dragging) return;
+    const stageRect=drawer.parentElement.getBoundingClientRect();
+    let pct=((e.clientX-stageRect.left)/stageRect.width)*100;
+    pct=Math.max(30,Math.min(95,pct));
+    drawer.style.width=pct+'%';
+    label.textContent=Math.round(pct)+'%';
+  });
+  window.addEventListener('mouseup',()=>dragging=false);
+})();
+
+/* resize: vertical drag (#7) */
+(function(){
+  const handle=document.getElementById('d7handle');
+  const drawer=document.getElementById('d7drawer');
+  const label=document.getElementById('d7height');
+  let dragging=false;
+  handle.addEventListener('mousedown',e=>{dragging=true;e.preventDefault();});
+  window.addEventListener('mousemove',e=>{
+    if(!dragging) return;
+    const stageRect=drawer.parentElement.getBoundingClientRect();
+    let pct=((stageRect.bottom-e.clientY)/stageRect.height)*100;
+    pct=Math.max(20,Math.min(90,pct));
+    drawer.style.height=pct+'%';
+    label.textContent=Math.round(pct)+'%';
+  });
+  window.addEventListener('mouseup',()=>dragging=false);
+})();
+
+/* snap points (#8) */
+function snapTo(pct){
+  const drawer=document.getElementById('d8drawer');
+  drawer.style.transform='translate(0,0)';
+  drawer.style.height=pct+'%';
+  document.getElementById('d8overlay').classList.add('show');
+  document.getElementById('d8snap').textContent=pct+'%';
+  drawer.dataset.open='1';
+}
+
+/* double-click maximize (#9) */
+function toggleMaximize(id){
+  const drawer=document.getElementById(id+'drawer');
+  const state=document.getElementById(id+'state');
+  const maxed = drawer.dataset.max==='1';
+  drawer.style.width = maxed ? '65%' : '100%';
+  state.textContent = maxed ? '常規大小' : '全螢幕';
+  drawer.dataset.max = maxed ? '0':'1';
+}
+
+/* nested resizable panel (#10) */
+(function(){
+  const handle=document.getElementById('d10handle');
+  const panel=document.getElementById('d10panel');
+  let dragging=false, startY=0, startH=0;
+  handle.addEventListener('mousedown',e=>{dragging=true;startY=e.clientY;startH=panel.offsetHeight;e.preventDefault();});
+  window.addEventListener('mousemove',e=>{
+    if(!dragging) return;
+    let h=startH-(e.clientY-startY);
+    h=Math.max(40,Math.min(160,h));
+    panel.style.height=h+'px';
+  });
+  window.addEventListener('mouseup',()=>dragging=false);
+})();
+
+/* accordion single-open (#11) */
+function accordionToggle(head, group){
+  const body=head.nextElementSibling;
+  const isOpen=body.style.maxHeight && body.style.maxHeight!=='0px';
+  document.querySelectorAll(`[data-group="${group}"] .acc-body`).forEach(b=>{b.style.maxHeight='0px';});
+  document.querySelectorAll(`[data-group="${group}"] .acc-arrow`).forEach(a=>{a.style.transform='rotate(0deg)';});
+  if(!isOpen){
+    body.style.maxHeight=body.scrollHeight+'px';
+    head.querySelector('.acc-arrow').style.transform='rotate(180deg)';
+  }
+}
+
+/* accordion multi-open (#12, #13) */
+function accordionToggleMulti(head){
+  const body=head.nextElementSibling;
+  const isOpen=body.style.maxHeight && body.style.maxHeight!=='0px';
+  const arrow=head.querySelector('.acc-arrow');
+  body.style.maxHeight = isOpen ? '0px' : body.scrollHeight+'px';
+  arrow.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+}
+
+/* tabs (#14) */
+function switchTab(el, idx){
+  document.querySelectorAll('#d14tabs .d14tab').forEach(t=>{t.style.background='#1c2334';t.classList.remove('active');});
+  el.style.background='var(--accent)'; el.classList.add('active');
+  document.querySelectorAll('.d14panel').forEach((p,i)=>{p.style.display = i===idx ? 'block':'none';});
+}
+
+/* drag reorder (#15) */
+(function(){
+  const list=document.getElementById('d15list');
+  let dragEl=null;
+  list.addEventListener('dragstart',e=>{dragEl=e.target;e.target.style.opacity='.4';});
+  list.addEventListener('dragend',e=>{e.target.style.opacity='1';});
+  list.addEventListener('dragover',e=>{
+    e.preventDefault();
+    const target=e.target.closest('.d15row');
+    if(!target||target===dragEl) return;
+    const rect=target.getBoundingClientRect();
+    const next=(e.clientY-rect.top)/(rect.bottom-rect.top) > 0.5;
+    list.insertBefore(dragEl, next ? target.nextSibling : target);
+  });
+})();
+</script>
+</body>
+</html>

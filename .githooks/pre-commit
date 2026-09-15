@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# GG shared pre-commit（core.hooksPath=.githooks）
+#
+# 只擋「一定會爆 runtime」嘅錯，唔做 style 檢查（唔想拖慢其他 agent 嘅 commit）。
+# 目前一條 rule：KB-040 undefined name（刪咗定義但留返 call site → 靜默 500）。
+set -uo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+
+STAGED="$(git diff --cached --name-only --diff-filter=ACM | grep -E '^backend/.*\.py$' || true)"
+if [ -z "$STAGED" ]; then
+  exit 0
+fi
+
+# shellcheck disable=SC2086
+bash "$ROOT/scripts/check_undefined_names.sh" $STAGED

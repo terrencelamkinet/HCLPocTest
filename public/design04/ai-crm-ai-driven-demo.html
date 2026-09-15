@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI CRM Mobile WebApp · AI參與互動效果 Vol.3</title>
+<style>
+:root{
+  --bg:#0b0e14; --panel:#12161f; --panel2:#171c28; --accent:#5b8cff; --accent2:#8b5cf6;
+  --text:#e8ecf5; --sub:#8a93a6; --ok:#34d399; --warn:#fbbf24; --danger:#f87171;
+  --radius:22px;
+}
+*{box-sizing:border-box;}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang HK","Microsoft JhengHei",sans-serif;background:linear-gradient(160deg,#0b0e14,#11121a 40%,#0b0e14);color:var(--text);}
+header.hero{padding:56px 24px 40px;text-align:center;max-width:900px;margin:0 auto;}
+header.hero h1{font-size:clamp(24px,4vw,38px);margin:0 0 12px;background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent;}
+header.hero p{color:var(--sub);font-size:15px;line-height:1.8;margin:0 auto;max-width:720px;}
+.tags{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:18px;}
+.tag{padding:6px 14px;border-radius:999px;background:var(--panel2);border:1px solid #24293a;font-size:12px;color:var(--sub);}
+.note{max-width:900px;margin:20px auto 0;padding:14px 18px;background:var(--panel2);border:1px solid #24293a;border-radius:14px;font-size:12.5px;color:var(--sub);line-height:1.8;}
+.note b{color:var(--text);}
+.section-title{max-width:1200px;margin:60px auto 20px;padding:0 24px;display:flex;align-items:baseline;gap:12px;}
+.section-title h2{font-size:20px;margin:0;color:var(--text);}
+.section-title span{color:var(--sub);font-size:13px;}
+.grid{max-width:1200px;margin:0 auto;padding:0 24px;display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px;}
+.card{background:var(--panel);border:1px solid #1e2330;border-radius:var(--radius);padding:20px;display:flex;flex-direction:column;gap:14px;}
+.card h3{margin:0;font-size:15px;display:flex;align-items:center;gap:8px;}
+.badge{font-size:11px;padding:2px 8px;border-radius:8px;background:rgba(91,140,255,.15);color:var(--accent);font-weight:600;}
+.badge.ai{background:linear-gradient(135deg,rgba(91,140,255,.25),rgba(139,92,246,.25));color:#c3d0ff;}
+.card p.desc{margin:0;color:var(--sub);font-size:12.5px;line-height:1.6;}
+.stage{position:relative;height:200px;background:#05070c;border-radius:16px;overflow:hidden;border:1px solid #1c2130;display:flex;align-items:center;justify-content:center;padding:14px;}
+.controls{display:flex;gap:8px;flex-wrap:wrap;}
+button.trigger{background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#fff;padding:8px 16px;border-radius:10px;font-size:12.5px;cursor:pointer;font-weight:600;}
+button.trigger:active{transform:scale(.96);}
+button.trigger.secondary{background:var(--panel2);border:1px solid #2a3040;color:var(--text);}
+.speed{margin-left:auto;font-size:11px;color:var(--sub);align-self:center;}
+footer{text-align:center;padding:60px 24px;color:var(--sub);font-size:12px;}
+input.demo-input{width:100%;background:#0e111a;border:1px solid #262c3d;color:var(--text);border-radius:8px;padding:8px 10px;font-size:12px;outline:none;}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--accent);display:inline-block;animation:bounce 1.4s infinite;}
+@keyframes bounce{0%,80%,100%{transform:translateY(0);opacity:.4}40%{transform:translateY(-6px);opacity:1}}
+@keyframes shimmer{0%{background-position:-200px 0}100%{background-position:200px 0}}
+@keyframes glow{0%,100%{box-shadow:0 0 0 0 rgba(91,140,255,.5)}50%{box-shadow:0 0 0 6px rgba(91,140,255,0)}}
+</style>
+</head>
+<body>
+
+<nav style="display:flex;gap:10px;justify-content:center;padding:20px 24px 0;max-width:900px;margin:0 auto;flex-wrap:wrap;">
+  <a href="/design04/" style="padding:8px 20px;border-radius:999px;background:var(--panel2);color:var(--text);border:1px solid #24293a;font-size:14px;font-weight:500;text-decoration:none;" onmouseover="this.style.background='#1e2330'" onmouseout="this.style.background='var(--panel2)'">🎬 主 Demo</a>
+  <a href="/design04/ai-crm-editing-saving-demo.html" style="padding:8px 20px;border-radius:999px;background:var(--panel2);color:var(--text);border:1px solid #24293a;font-size:14px;font-weight:500;text-decoration:none;" onmouseover="this.style.background='#1e2330'" onmouseout="this.style.background='var(--panel2)'">✏️ Editing &amp; Saving</a>
+  <a href="/design04/ai-crm-ai-driven-demo.html" style="padding:8px 20px;border-radius:999px;background:var(--accent);color:#fff;font-size:14px;font-weight:600;text-decoration:none;" onmouseover="this.style.opacity=.8" onmouseout="this.style.opacity=1">🤖 AI-Driven</a>
+</nav>
+<header class="hero">
+  <h1>AI 參與互動效果<br>Vol.3 — AI-First 介面模組</h1>
+  <p>本頁新增 20 個以「AI 主動參與」為核心的動效模組，涵蓋 AI 思考中狀態、串流文字、建議卡片、信心分數、AI 頭像存在感等，並示範企業級 CRM 常見的 AI 元件擺位邏輯。</p>
+  <div class="tags">
+    <span class="tag">AI Thinking / Streaming</span>
+    <span class="tag">Explainability</span>
+    <span class="tag">Next Best Action</span>
+    <span class="tag">AI Chat Widget</span>
+    <span class="tag">Confidence Score</span>
+  </div>
+  <div class="note">
+    <b>AI 放置位置慣例：</b>一般網站／SaaS 產品不會把 AI 對話框直接放在版面最頂層第一個位置，而是分兩種模式 — ①<b>AI-first Hero</b>：像 v0、Perplexity 等產品把提示輸入框放在首頁最中心，AI 即是主產品；②<b>AI 輔助浮層</b>：像 CRM／SaaS 後台，AI Chat／建議通常放在<b>右下角浮動按鈕</b>或<b>側邊欄／卡片內嵌</b>，而不是佔用第一屏幕主要空間，因為企業用戶的「第一位置」仍是核心任務資料（客戶列表、儀表板），AI 是輔助層而非取代主畫面。下方模組同時示範這兩種擺位策略。
+  </div>
+</header>
+
+<div class="section-title"><h2>① AI 思考／回應狀態</h2><span>Thinking &amp; Streaming</span></div>
+<div class="grid" id="g1"></div>
+
+<div class="section-title"><h2>② AI 建議與可解釋性</h2><span>Suggestion &amp; Explainability</span></div>
+<div class="grid" id="g2"></div>
+
+<div class="section-title"><h2>③ AI 入口與擺位模式</h2><span>Entry Point Placement</span></div>
+<div class="grid" id="g3"></div>
+
+<div class="section-title"><h2>④ AI 存在感與個人化</h2><span>Presence &amp; Personalization</span></div>
+<div class="grid" id="g4"></div>
+
+<footer>Terrence_PRO · AI CRM AI-Driven 動效參考 Vol.3 · AI 元件建議「輔助不搶主場」，除非產品本身即是 AI-first</footer>
+
+<script>
+function card(container,title,badge,badgeClass,desc,stageHTML,controlsHTML,speed){
+  const el=document.createElement('div');
+  el.className='card';
+  el.innerHTML=`<h3>${title}<span class="badge ${badgeClass||''}">${badge}</span></h3><p class="desc">${desc}</p><div class="stage">${stageHTML}</div><div class="controls">${controlsHTML}<span class="speed">${speed}</span></div>`;
+  container.appendChild(el);
+  return el;
+}
+const g1=document.getElementById('g1'), g2=document.getElementById('g2'), g3=document.getElementById('g3'), g4=document.getElementById('g4');
+
+/* ===== G1: AI THINKING / STREAMING (6) ===== */
+card(g1,'思考中三點跳動','AI','ai','經典 AI 思考中指示，三個點依序上下彈跳，讓用戶明確知道系統正在運算而非當機。',
+ `<div style="display:flex;gap:6px;"><span class="dot"></span><span class="dot" style="animation-delay:.2s;"></span><span class="dot" style="animation-delay:.4s;"></span></div>`,
+ `<span class="speed" style="margin:0;">自動播放中</span>`,'1.4s loop');
+card(g1,'串流打字機文字','AI','ai','AI 回覆逐字／逐詞出現，模擬 LLM 即時生成過程，比整段瞬間顯示更具真實感與耐心緩衝作用。',
+ `<div id="s2text" style="font-size:12px;text-align:left;width:100%;color:var(--text);"></div>`,
+ `<button class="trigger" onclick="typeStream()">產生 AI 建議</button>`,'~35ms/字');
+card(g1,'Shimmer 骨架載入條','AI','ai','AI 分析完成前顯示 shimmer 光澤流動骨架，取代單調的灰塊，提升等待期間的質感。',
+ `<div style="width:100%;display:flex;flex-direction:column;gap:8px;"><div style="height:12px;border-radius:6px;background:linear-gradient(90deg,#1a2030 25%,#252c40 37%,#1a2030 63%);background-size:400px 100%;animation:shimmer 1.4s infinite;"></div><div style="height:12px;width:70%;border-radius:6px;background:linear-gradient(90deg,#1a2030 25%,#252c40 37%,#1a2030 63%);background-size:400px 100%;animation:shimmer 1.4s infinite .1s;"></div></div>`,
+ `<span class="speed" style="margin:0;">自動播放中</span>`,'1.4s loop');
+card(g1,'脈動光暈 AI 頭像','AI','ai','AI 助理頭像在運算時周圍出現柔和光暈脈動，暗示系統正在「思考」，比純文字更有生命感。',
+ `<div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));animation:glow 1.6s infinite;display:flex;align-items:center;justify-content:center;font-size:14px;">✦</div>`,
+ `<span class="speed" style="margin:0;">自動播放中</span>`,'1.6s loop');
+card(g1,'進度百分比運算提示','AI','ai','長時間 AI 批量分析（如客戶評分重算）顯示百分比與描述文字同步更新，降低不確定感。',
+ `<div style="width:100%;text-align:center;"><div id="s5pct" style="font-size:22px;font-weight:700;color:var(--accent);">0%</div><div id="s5label" style="font-size:11px;color:var(--sub);margin-top:4px;">準備分析客戶資料...</div></div>`,
+ `<button class="trigger" onclick="runProgress()">開始 AI 分析</button>`,'2.5s 全程');
+card(g1,'取消／中斷 AI 生成','AI','ai','生成過程中提供明確的停止按鈕，讓用戶隨時中斷過長或方向錯誤的 AI 輸出，強化控制感。',
+ `<div style="display:flex;align-items:center;gap:8px;"><span class="dot"></span><span class="dot" style="animation-delay:.2s;"></span><span class="dot" style="animation-delay:.4s;"></span><span style="font-size:11px;color:var(--sub);">AI 生成中...</span></div>`,
+ `<button class="trigger secondary" onclick="this.textContent='已停止';setTimeout(()=>this.textContent='停止生成',1000)">停止生成</button>`,'即時');
+
+/* ===== G2: AI SUGGESTION & EXPLAINABILITY (6) ===== */
+card(g2,'Next Best Action 卡片','AI','ai','AI 主動推薦下一步行動，卡片附上信心分數與簡短理由，用戶可一鍵採納或忽略。',
+ `<div style="width:100%;background:#171c28;border:1px solid #2a3050;border-radius:10px;padding:10px;font-size:11px;"><div style="display:flex;justify-content:space-between;"><b>建議跟進：陳先生</b><span style="color:var(--ok);">92% 信心</span></div><div style="color:var(--sub);margin-top:4px;">7天未回覆 + 開信率高</div></div>`,
+ `<span class="speed" style="margin:0;">靜態展示</span>`,'—');
+card(g2,'AI 建議淡入淸單','AI','ai','多筆 AI 建議依序淡入排列，避免一次全部湧現造成資訊過載。',
+ `<div id="s2list" style="width:100%;display:flex;flex-direction:column;gap:6px;"></div>`,
+ `<button class="trigger" onclick="suggestList()">產生建議清單</button>`,'間隔120ms');
+card(g2,'信心分數環形指示','AI','ai','以環形進度呈現 AI 判斷信心度，取代單純數字，視覺上更快建立信任感知。',
+ `<div style="display:flex;align-items:center;gap:10px;"><svg width="50" height="50" viewBox="0 0 50 50"><circle cx="25" cy="25" r="20" fill="none" stroke="#232a3d" stroke-width="5"/><circle id="s3ring" cx="25" cy="25" r="20" fill="none" stroke="var(--ok)" stroke-width="5" stroke-dasharray="126" stroke-dashoffset="126" transform="rotate(-90 25 25)" style="transition:stroke-dashoffset 1s ease;"/></svg><span id="s3val" style="font-size:13px;font-weight:700;">0%</span></div>`,
+ `<button class="trigger secondary" onclick="ringConfidence()">評估信心度</button>`,'1s');
+card(g2,'理由展開 Tooltip','AI','ai','點擊「為什麼？」展開 AI 判斷依據，滿足可解釋性需求同時不佔用預設畫面空間。',
+ `<div style="width:100%;font-size:11px;"><span>優先度：<b style="color:var(--warn);">高</b> <span id="s4why" style="color:var(--accent);cursor:pointer;text-decoration:underline;" onclick="document.getElementById('s4detail').style.maxHeight=document.getElementById('s4detail').style.maxHeight=='40px'?'0px':'40px'">為什麼？</span></span><div id="s4detail" style="max-height:0;overflow:hidden;transition:max-height .3s ease;color:var(--sub);margin-top:6px;">因交易金額高於平均，且過去3次互動皆為正向回覆。</div></div>`,
+ `<span class="speed" style="margin:0;">點擊「為什麼？」</span>`,'300ms');
+card(g2,'AI 標籤浮水印','AI','ai','AI 生成內容旁加上小型「AI 產生」標籤，滑鼠移入時輕微放大提示來源透明度。',
+ `<div style="width:100%;font-size:12px;"><p style="margin:0 0 4px;">建議回覆：「感謝您的耐心等待，我們將在明天前完成報價。」</p><span style="font-size:10px;padding:2px 6px;border-radius:6px;background:rgba(139,92,246,.2);color:#c3b8ff;display:inline-block;transition:transform .2s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">✦ AI 生成</span></div>`,
+ `<span class="speed" style="margin:0;">滑過標籤體驗</span>`,'200ms');
+card(g2,'接受／修改／拒絕操作條','AI','ai','每則 AI 建議底部提供三個明確動作，強調「建議優先、強制最少」的設計原則。',
+ `<div style="width:100%;display:flex;gap:6px;"><button class="trigger" style="flex:1;padding:6px;font-size:10.5px;" onclick="this.textContent='已採納 ✓'">採納</button><button class="trigger secondary" style="flex:1;padding:6px;font-size:10.5px;">修改</button><button class="trigger secondary" style="flex:1;padding:6px;font-size:10.5px;">忽略</button></div>`,
+ `<span class="speed" style="margin:0;">點擊採納體驗</span>`,'即時');
+
+/* ===== G3: AI ENTRY POINT PLACEMENT (4) ===== */
+card(g3,'右下角浮動 AI 按鈕','常用','','企業 CRM 最主流做法：AI 對話入口固定於畫面右下角，不佔用主要工作區，符合用戶既有瀏覽習慣。',
+ `<div style="width:100%;height:100%;position:relative;"><div class="page-fill" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--sub);font-size:11px;">客戶列表主畫面</div><div style="position:absolute;bottom:10px;right:10px;width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;animation:glow 2s infinite;">✦</div></div>`,
+ `<span class="speed" style="margin:0;">靜態展示</span>`,'—');
+card(g3,'AI-First Hero 提示輸入框','進階','ai','若產品本身以 AI 為核心（如智能助理型 CRM），提示輸入框可置於首頁最中心，成為主要互動入口。',
+ `<div style="width:100%;text-align:center;"><div style="font-size:12px;color:var(--sub);margin-bottom:8px;">「請問今天有哪些高優先客戶？」</div><input class="demo-input" placeholder="輸入指令給 AI 助理..." style="text-align:center;"></div>`,
+ `<span class="speed" style="margin:0;">靜態展示</span>`,'—');
+card(g3,'側邊欄常駐 AI 面板','進階','ai','AI 洞察以側邊固定面板呈現，與主資料表格並排，適合需要持續參考 AI 建議的分析工作流。',
+ `<div style="width:100%;display:flex;gap:6px;height:100%;"><div style="flex:2;background:#141a28;border-radius:8px;font-size:10px;color:var(--sub);display:flex;align-items:center;justify-content:center;">主資料表</div><div style="flex:1;background:#171c28;border:1px solid #2a3050;border-radius:8px;font-size:9px;color:var(--sub);padding:6px;">AI 洞察面板<br>• 3個高風險客戶<br>• 建議跟進2件</div></div>`,
+ `<span class="speed" style="margin:0;">靜態展示</span>`,'—');
+card(g3,'內嵌卡片式 AI 摘要','推薦','ai','AI 摘要直接嵌入既有儀表板卡片中，不需額外跳轉視窗，符合「AI融入任務流」而非「AI是另一個目的地」原則。',
+ `<div style="width:100%;background:#171c28;border-radius:10px;padding:10px;font-size:10.5px;"><div style="color:var(--sub);margin-bottom:4px;">本週業績摘要</div><div>營收 <b style="color:var(--ok);">+12%</b></div><div style="margin-top:6px;padding-top:6px;border-top:1px solid #232a3d;color:#c3b8ff;">✦ AI: 主因為新客戶轉換率提升</div></div>`,
+ `<span class="speed" style="margin:0;">靜態展示</span>`,'—');
+
+/* ===== G4: PRESENCE & PERSONALIZATION (4) ===== */
+card(g4,'AI 主動打招呼氣泡','AI','ai','用戶進入頁面數秒後，AI 頭像旁淡入打招呼訊息，主動而不打斷，比強制彈窗更受歡迎。',
+ `<div style="display:flex;align-items:flex-end;gap:8px;"><div style="width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:12px;">✦</div><div id="s1bubble" style="background:#171c28;border-radius:10px;padding:6px 10px;font-size:11px;opacity:0;transform:translateY(6px);transition:all .35s;">早安，今天有 3 個客戶需要跟進喔。</div></div>`,
+ `<button class="trigger secondary" onclick="const e=document.getElementById('s1bubble');e.style.opacity=1;e.style.transform='translateY(0)'">模擬進入頁面</button>`,'350ms');
+card(g4,'AI 個人化排序提示','AI','ai','列表因 AI 個人化排序改變順序時，項目以短暫高光提示「已依你的習慣重新排序」，避免用戶困惑資料為何跳動。',
+ `<div style="width:100%;display:flex;flex-direction:column;gap:5px;font-size:10.5px;" id="s2personal"></div>`,
+ `<button class="trigger secondary" onclick="personalizeSort()">套用 AI 個人化排序</button>`,'400ms');
+card(g4,'語音輸入波形回饋','特效','ai','按住語音輸入按鈕說話時，即時波形隨音量起伏，讓用戶確認系統確實在收音而非靜默失敗。',
+ `<div style="display:flex;align-items:center;gap:8px;"><div style="display:flex;gap:2px;align-items:center;height:24px;" id="s3wave"></div></div>`,
+ `<button class="trigger secondary" onclick="voiceWave()">按住模擬語音</button>`,'即時波形');
+card(g4,'AI 學習中徽章','進階','ai','系統偵測到用戶重複修正 AI 建議時，顯示「AI 學習中」徽章，說明系統正在根據回饋調整模型，增加透明度。',
+ `<div style="display:flex;align-items:center;gap:6px;font-size:11px;"><span style="width:8px;height:8px;border-radius:50%;background:var(--warn);animation:blink2 1s infinite;"></span><span>AI 正在根據你的修正調整建議邏輯...</span></div>`,
+ `<span class="speed" style="margin:0;">自動播放中</span>`,'1s loop');
+
+/* ============ JS logic ============ */
+function typeStream(){
+  const el=document.getElementById('s2text');
+  const text='根據近期互動紀錄，建議優先聯絡「香港置地」客戶，其詢價頻率提升 40%。';
+  el.textContent='';
+  let i=0;
+  const timer=setInterval(()=>{
+    el.textContent+=text[i]; i++;
+    if(i>=text.length) clearInterval(timer);
+  },35);
+}
+function runProgress(){
+  const pct=document.getElementById('s5pct'); const label=document.getElementById('s5label');
+  const stages=[[20,'讀取客戶資料...'],[45,'計算互動分數...'],[70,'比對歷史模式...'],[100,'完成分析']];
+  let idx=0;
+  function step(){
+    if(idx>=stages.length){ setTimeout(()=>{pct.textContent='0%';label.textContent='準備分析客戶資料...';},1200); return;}
+    pct.textContent=stages[idx][0]+'%'; label.textContent=stages[idx][1]; idx++;
+    setTimeout(step,600);
+  }
+  step();
+}
+function suggestList(){
+  const c=document.getElementById('s2list'); c.innerHTML='';
+  const items=['跟進陳先生（高優先）','審核報價單 #2291','回覆客戶查詢郵件'];
+  items.forEach((t,i)=>{
+    const d=document.createElement('div');
+    d.textContent='✦ '+t; d.style.background='#171c28'; d.style.padding='6px 8px'; d.style.borderRadius='6px';
+    d.style.opacity=0; d.style.transform='translateX(-10px)'; d.style.transition='all .3s ease';
+    c.appendChild(d);
+    setTimeout(()=>{d.style.opacity=1;d.style.transform='translateX(0)';},120*i+50);
+  });
+}
+function ringConfidence(){
+  const ring=document.getElementById('s3ring'); const val=document.getElementById('s3val');
+  ring.style.strokeDashoffset='20';
+  let v=0; const target=87;
+  const timer=setInterval(()=>{ v+=3; if(v>=target){v=target; clearInterval(timer);} val.textContent=v+'%'; },30);
+}
+function personalizeSort(){
+  const c=document.getElementById('s2personal'); c.innerHTML='';
+  const items=['客戶 A - 已依互動頻率排序','客戶 B','客戶 C'];
+  items.forEach((t,i)=>{
+    const d=document.createElement('div');
+    d.textContent=t; d.style.background= i===0 ? 'rgba(91,140,255,.18)':'#171c28'; d.style.padding='6px 8px'; d.style.borderRadius='6px';
+    d.style.transition='background .4s ease';
+    c.appendChild(d);
+  });
+  setTimeout(()=>{ if(c.firstChild) c.firstChild.style.background='#171c28'; },1500);
+}
+function voiceWave(){
+  const c=document.getElementById('s3wave'); c.innerHTML='';
+  for(let i=0;i<8;i++){
+    const bar=document.createElement('div');
+    bar.style.width='3px'; bar.style.background='var(--accent)'; bar.style.borderRadius='2px';
+    bar.style.height='4px'; bar.style.transition='height .15s ease';
+    c.appendChild(bar);
+  }
+  let count=0;
+  const timer=setInterval(()=>{
+    document.querySelectorAll('#s3wave div').forEach(b=>{ b.style.height=(Math.random()*20+4)+'px'; });
+    count++; if(count>20){clearInterval(timer); document.querySelectorAll('#s3wave div').forEach(b=>b.style.height='4px');}
+  },100);
+}
+</script>
+<style>
+@keyframes blink2{0%,100%{opacity:1}50%{opacity:.3}}
+</style>
+</body>
+</html>

@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI CRM Mobile WebApp · Editing & Saving 動效範例庫 Vol.2</title>
+<style>
+:root{
+  --bg:#0b0e14; --panel:#12161f; --panel2:#171c28; --accent:#5b8cff; --accent2:#8b5cf6;
+  --text:#e8ecf5; --sub:#8a93a6; --ok:#34d399; --warn:#fbbf24; --danger:#f87171;
+  --radius:22px;
+}
+*{box-sizing:border-box;}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang HK","Microsoft JhengHei",sans-serif;background:linear-gradient(160deg,#0b0e14,#11121a 40%,#0b0e14);color:var(--text);}
+header.hero{padding:56px 24px 40px;text-align:center;max-width:900px;margin:0 auto;}
+header.hero h1{font-size:clamp(24px,4vw,38px);margin:0 0 12px;background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent;}
+header.hero p{color:var(--sub);font-size:15px;line-height:1.8;margin:0 auto;max-width:720px;}
+.tags{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:18px;}
+.tag{padding:6px 14px;border-radius:999px;background:var(--panel2);border:1px solid #24293a;font-size:12px;color:var(--sub);}
+.section-title{max-width:1200px;margin:60px auto 20px;padding:0 24px;display:flex;align-items:baseline;gap:12px;}
+.section-title h2{font-size:20px;margin:0;color:var(--text);}
+.section-title span{color:var(--sub);font-size:13px;}
+.grid{max-width:1200px;margin:0 auto;padding:0 24px;display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px;}
+.card{background:var(--panel);border:1px solid #1e2330;border-radius:var(--radius);padding:20px;display:flex;flex-direction:column;gap:14px;}
+.card h3{margin:0;font-size:15px;display:flex;align-items:center;gap:8px;}
+.badge{font-size:11px;padding:2px 8px;border-radius:8px;background:rgba(91,140,255,.15);color:var(--accent);font-weight:600;}
+.card p.desc{margin:0;color:var(--sub);font-size:12.5px;line-height:1.6;}
+.stage{position:relative;height:200px;background:#05070c;border-radius:16px;overflow:hidden;border:1px solid #1c2130;display:flex;align-items:center;justify-content:center;padding:14px;}
+.controls{display:flex;gap:8px;flex-wrap:wrap;}
+button.trigger{background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#fff;padding:8px 16px;border-radius:10px;font-size:12.5px;cursor:pointer;font-weight:600;}
+button.trigger:active{transform:scale(.96);}
+button.trigger.secondary{background:var(--panel2);border:1px solid #2a3040;color:var(--text);}
+.speed{margin-left:auto;font-size:11px;color:var(--sub);align-self:center;}
+footer{text-align:center;padding:60px 24px;color:var(--sub);font-size:12px;}
+input.demo-input,textarea.demo-input{width:100%;background:#0e111a;border:1px solid #262c3d;color:var(--text);border-radius:8px;padding:8px 10px;font-size:12px;outline:none;transition:border-color .2s,box-shadow .2s;}
+</style>
+</head>
+<body>
+
+<nav style="display:flex;gap:10px;justify-content:center;padding:20px 24px 0;max-width:900px;margin:0 auto;flex-wrap:wrap;">
+  <a href="/design04/" style="padding:8px 20px;border-radius:999px;background:var(--panel2);color:var(--text);border:1px solid #24293a;font-size:14px;font-weight:500;text-decoration:none;" onmouseover="this.style.background='#1e2330'" onmouseout="this.style.background='var(--panel2)'">🎬 主 Demo</a>
+  <a href="/design04/ai-crm-editing-saving-demo.html" style="padding:8px 20px;border-radius:999px;background:var(--accent);color:#fff;font-size:14px;font-weight:600;text-decoration:none;" onmouseover="this.style.opacity=.8" onmouseout="this.style.opacity=1">✏️ Editing &amp; Saving</a>
+  <a href="/design04/ai-crm-ai-driven-demo.html" style="padding:8px 20px;border-radius:999px;background:var(--panel2);color:var(--text);border:1px solid #24293a;font-size:14px;font-weight:500;text-decoration:none;" onmouseover="this.style.background='#1e2330'" onmouseout="this.style.background='var(--panel2)'">🤖 AI-Driven</a>
+</nav>
+<header class="hero">
+  <h1>Editing &amp; Saving<br>動效範例庫 Vol.2</h1>
+  <p>延續第一份 AI CRM UI/UX 動效庫，本篇新增 18 個以「編輯」與「儲存」為核心的新世代互動效果，涵蓋 inline editing、autosave 狀態指示、AI 協作編輯提示等現代 SaaS 常見設計模式。</p>
+  <div class="tags">
+    <span class="tag">Inline Editing</span>
+    <span class="tag">Autosave</span>
+    <span class="tag">Save Button States</span>
+    <span class="tag">AI 協作提示</span>
+    <span class="tag">錯誤/驗證回饋</span>
+  </div>
+</header>
+
+<div class="section-title"><h2>① Inline Editing 效果</h2><span>點擊即編輯</span></div>
+<div class="grid" id="g1"></div>
+
+<div class="section-title"><h2>② Save 按鈕狀態效果</h2><span>Loading → Success</span></div>
+<div class="grid" id="g2"></div>
+
+<div class="section-title"><h2>③ Autosave 自動儲存提示</h2><span>Unobtrusive Feedback</span></div>
+<div class="grid" id="g3"></div>
+
+<div class="section-title"><h2>④ 驗證／錯誤／協作回饋</h2><span>Validation &amp; Collaboration</span></div>
+<div class="grid" id="g4"></div>
+
+<footer>Terrence_PRO · AI CRM Editing &amp; Saving 動效參考 Vol.2 · 建議所有儲存回饋在 150–400ms 內完成初始反應</footer>
+
+<script>
+function card(container,title,badge,desc,stageHTML,controlsHTML,speed){
+  const el=document.createElement('div');
+  el.className='card';
+  el.innerHTML=`<h3>${title}<span class="badge">${badge}</span></h3><p class="desc">${desc}</p><div class="stage">${stageHTML}</div><div class="controls">${controlsHTML}<span class="speed">${speed}</span></div>`;
+  container.appendChild(el);
+  return el;
+}
+const g1=document.getElementById('g1'), g2=document.getElementById('g2'), g3=document.getElementById('g3'), g4=document.getElementById('g4');
+
+/* ===== G1: INLINE EDITING (5) ===== */
+card(g1,'點擊即編輯 Click-to-Edit','推薦','文字欄位預設為純顯示，點擊後轉為輸入框並自動 focus，邊框漸現藍色高光。',
+ `<div style="width:100%;"><span id="e1text" style="font-size:13px;cursor:pointer;border-bottom:1px dashed var(--sub);" onclick="this.style.display='none';document.getElementById('e1input').style.display='block';document.getElementById('e1input').focus();">客戶名稱：ABC 有限公司</span><input id="e1input" class="demo-input" value="ABC 有限公司" style="display:none;" onblur="this.style.boxShadow='none';document.getElementById('e1text').style.display='inline';this.style.display='none';" onfocus="this.style.boxShadow='0 0 0 3px rgba(91,140,255,.35)';this.style.borderColor='var(--accent)';"></div>`,
+ `<span class="speed" style="margin:0;">點擊文字體驗</span>`,'150ms');
+// 2 Double click to edit table cell
+card(g1,'雙擊編輯表格單元','常用','表格內雙擊儲存格轉為可編輯狀態，帶輕微縮放與高光提示，適合大量資料表格快速修正。',
+ `<div style="width:100%;"><div id="e2cell" ondblclick="this.contentEditable=true;this.focus();this.style.background='rgba(91,140,255,.12)';this.style.transform='scale(1.02)';" onblur="this.contentEditable=false;this.style.background='transparent';this.style.transform='scale(1)';" style="padding:8px;border-radius:6px;font-size:12px;transition:all .2s;outline:none;border:1px solid #262c3d;">HK$ 128,000</div></div>`,
+ `<span class="speed" style="margin:0;">雙擊儲存格體驗</span>`,'200ms');
+// 3 Slide-up label to floating label
+card(g1,'浮動標籤 Floating Label','推薦','輸入框 focus 時 placeholder 上移縮小成標籤，維持欄位語意同時節省空間。',
+ `<div style="width:100%;position:relative;padding-top:14px;"><label id="e3label" style="position:absolute;left:10px;top:22px;font-size:12px;color:var(--sub);transition:all .2s ease;pointer-events:none;">聯絡電話</label><input class="demo-input" style="padding-top:14px;" onfocus="document.getElementById('e3label').style.top='2px';document.getElementById('e3label').style.fontSize='10px';document.getElementById('e3label').style.color='var(--accent)';" onblur="if(!this.value){document.getElementById('e3label').style.top='22px';document.getElementById('e3label').style.fontSize='12px';document.getElementById('e3label').style.color='var(--sub)';}"></div>`,
+ `<span class="speed" style="margin:0;">點擊輸入框</span>`,'200ms');
+// 4 Drag handle reorder
+card(g1,'拖曳排序 Drag Handle','進階','列表項目按住把手拖曳時輕微放大並產生陰影，放開後其他項目平滑補位。',
+ `<div style="width:100%;display:flex;flex-direction:column;gap:6px;"><div class="drag-row" style="display:flex;align-items:center;gap:8px;background:#171c28;padding:8px;border-radius:8px;font-size:11px;transition:all .2s;cursor:grab;" onmousedown="this.style.transform='scale(1.03)';this.style.boxShadow='0 8px 20px rgba(0,0,0,.4)';" onmouseup="this.style.transform='scale(1)';this.style.boxShadow='none';">⠿ 商機A - 跟進中</div><div style="background:#171c28;padding:8px;border-radius:8px;font-size:11px;">⠿ 商機B - 已成交</div></div>`,
+ `<span class="speed" style="margin:0;">按住拖曳項目體驗</span>`,'200ms');
+// 5 Rich text toolbar reveal
+card(g1,'富文本工具列浮現','進階','選取文字時上方浮現格式工具列（粗體/連結等），選取消失時工具列淡出。',
+ `<div style="width:100%;"><textarea class="demo-input" rows="3" onselect="document.getElementById('e5tb').style.opacity=1;document.getElementById('e5tb').style.transform='translateY(0)';" onblur="document.getElementById('e5tb').style.opacity=0;document.getElementById('e5tb').style.transform='translateY(-6px)';">選取這段文字試試看...</textarea><div id="e5tb" style="margin-top:6px;display:flex;gap:6px;opacity:0;transform:translateY(-6px);transition:all .25s;font-size:11px;"><span style="background:#1a2030;padding:2px 8px;border-radius:4px;">B</span><span style="background:#1a2030;padding:2px 8px;border-radius:4px;">I</span><span style="background:#1a2030;padding:2px 8px;border-radius:4px;">🔗</span></div></div>`,
+ `<span class="speed" style="margin:0;">選取文字體驗</span>`,'250ms');
+
+/* ===== G2: SAVE BUTTON STATES (5) ===== */
+card(g2,'Save → Spinner → Check','推薦','按下儲存後按鈕文字轉為 Spinner，完成後短暫顯示綠色勾號再回復原狀，明確傳達流程結束。',
+ `<div><button class="trigger" id="s1btn" onclick="saveFlow1()">儲存</button></div>`,
+ `<span class="speed" style="margin:0;">點擊儲存體驗</span>`,'1200ms 全程');
+// 2 Morphing width save button
+card(g2,'按鈕形變 Morph 為圖示','進階','儲存按鈕在處理中收縮為圓形 Spinner，完成後展開回矩形並顯示文字，強調狀態轉換的流暢性。',
+ `<div><button class="trigger" id="s2btn" style="width:90px;border-radius:10px;transition:all .35s cubic-bezier(.4,0,.2,1);" onclick="saveFlow2()">儲存變更</button></div>`,
+ `<span class="speed" style="margin:0;">點擊儲存體驗</span>`,'350ms 形變');
+// 3 Progress fill button
+card(g2,'進度填滿按鈕','特效','按鈕背景以填色方式呈現上傳/儲存進度，適合大型附件或批量資料匯出情境。',
+ `<div style="width:140px;"><button class="trigger" id="s3btn" style="width:100%;position:relative;overflow:hidden;background:var(--panel2);color:var(--text);" onclick="saveFlow3()"><span id="s3fill" style="position:absolute;inset:0;width:0%;background:linear-gradient(135deg,var(--accent),var(--accent2));transition:width 1.4s linear;z-index:0;"></span><span style="position:relative;z-index:1;">匯出報表</span></button></div>`,
+ `<span class="speed" style="margin:0;">點擊匯出體驗</span>`,'1400ms');
+// 4 Disabled-to-enabled state fade
+card(g2,'未變更即disable儲存','常用','表單無修改時儲存按鈕呈灰階不可點擊，偵測到變更後平滑淡入啟用色，防止誤按空提交。',
+ `<div style="display:flex;flex-direction:column;gap:8px;width:100%;"><input class="demo-input" placeholder="修改此欄位觸發按鈕..." oninput="const b=document.getElementById('s4btn');b.disabled=false;b.style.opacity=1;b.style.background='linear-gradient(135deg,var(--accent),var(--accent2))';b.style.cursor='pointer';"><button class="trigger" id="s4btn" disabled style="opacity:.35;background:var(--panel2);cursor:not-allowed;transition:all .25s;">儲存</button></div>`,
+ `<span class="speed" style="margin:0;">輸入文字體驗</span>`,'250ms');
+// 5 Success checkmark morph draw
+card(g2,'SVG 勾號描邊動畫','進階','儲存成功時以 SVG stroke-dashoffset 動態描繪勾號路徑，比純圖示切換更具高級質感。',
+ `<div style="display:flex;align-items:center;gap:10px;"><button class="trigger secondary" onclick="drawCheck()">確認送出</button><svg width="26" height="26" viewBox="0 0 26 26"><circle cx="13" cy="13" r="11" fill="none" stroke="var(--ok)" stroke-width="2" id="s5circle" style="stroke-dasharray:69;stroke-dashoffset:69;transition:stroke-dashoffset .5s ease;"/><path d="M7 13l4 4 8-8" fill="none" stroke="var(--ok)" stroke-width="2" id="s5check" style="stroke-dasharray:16;stroke-dashoffset:16;transition:stroke-dashoffset .3s ease .4s;"/></svg></div>`,
+ `<span class="speed" style="margin:0;">點擊送出體驗</span>`,'700ms 全程');
+
+/* ===== G3: AUTOSAVE INDICATOR (4) ===== */
+card(g3,'頂部細線 Autosave Bar','推薦','編輯內容時頁面頂部出現細線進度動畫，完成後淡出，完全不打斷使用者輸入流程。',
+ `<div style="width:100%;position:relative;height:60px;"><div style="position:absolute;top:0;left:0;height:2px;background:linear-gradient(90deg,var(--accent),var(--accent2));width:0;" id="a1bar"></div><textarea class="demo-input" rows="2" oninput="autosave1()" placeholder="輸入即觸發自動儲存..."></textarea></div>`,
+ `<span class="speed" style="margin:0;">輸入文字體驗</span>`,'900ms debounce');
+// 2 status text morph "Saving..." -> "Saved"
+card(g3,'狀態文字漸變切換','常用','狀態文字在「編輯中」「儲存中」「已儲存」之間以淡入淡出方式切換，並附帶時間戳記提升信任感。',
+ `<div style="display:flex;flex-direction:column;gap:8px;width:100%;"><input class="demo-input" oninput="autosave2()" placeholder="編輯任何欄位..."><span id="a2status" style="font-size:11px;color:var(--sub);transition:opacity .25s;">已儲存 · 剛剛</span></div>`,
+ `<span class="speed" style="margin:0;">輸入文字體驗</span>`,'600ms debounce');
+// 3 pulsing dot cloud sync indicator
+card(g3,'雲端同步脈動指示','進階','小圓點以脈動動畫表示正在與伺服器同步，同步完成後轉為靜態勾號圖示，適合多裝置協作情境。',
+ `<div style="display:flex;align-items:center;gap:8px;"><button class="trigger secondary" onclick="cloudSync()">模擬編輯</button><div id="a3dot" style="width:10px;height:10px;border-radius:50%;background:var(--sub);"></div><span id="a3label" style="font-size:11px;color:var(--sub);">閒置</span></div>`,
+ `<span class="speed" style="margin:0;">點擊模擬編輯</span>`,'1000ms');
+// 4 undo toast after autosave
+card(g3,'自動儲存後 Undo Toast','推薦','自動儲存觸發後短暫顯示可撤銷的提示條，平衡自動化便利與使用者控制感。',
+ `<div style="width:100%;position:relative;height:60px;"><button class="trigger secondary" onclick="undoToast()">刪除欄位</button><div id="a4toast" style="position:absolute;bottom:0;left:0;right:0;background:#1c2436;border-radius:8px;padding:8px 10px;font-size:11px;display:flex;justify-content:space-between;transform:translateY(50px);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);">已刪除 <span style="color:var(--accent);cursor:pointer;">復原</span></div></div>`,
+ `<span class="speed" style="margin:0;">點擊刪除體驗</span>`,'300ms');
+
+/* ===== G4: VALIDATION & COLLABORATION (4) ===== */
+card(g4,'欄位錯誤震動提示','推薦','驗證失敗時輸入框邊框轉紅並左右輕微震動（shake），比純文字提示更具即時警示感。',
+ `<div style="width:100%;"><input class="demo-input" id="v1input" placeholder="輸入 Email 後點擊驗證"><button class="trigger secondary" style="margin-top:8px;" onclick="shakeValidate()">驗證</button></div>`,
+ `<span class="speed" style="margin:0;">點擊驗證體驗</span>`,'400ms');
+// 2 inline success checkmark on valid input
+card(g4,'即時輸入驗證勾號','常用','輸入符合格式時欄位右側即時淡入綠色勾號，提供無需送出即可知曉的持續回饋。',
+ `<div style="width:100%;position:relative;"><input class="demo-input" oninput="liveValidate(this)" placeholder="輸入任意3個字以上文字..."><span id="v2check" style="position:absolute;right:10px;top:8px;color:var(--ok);opacity:0;transition:opacity .2s;">✓</span></div>`,
+ `<span class="speed" style="margin:0;">輸入文字體驗</span>`,'200ms');
+// 3 collaborator cursor / avatar presence
+card(g4,'協作者即時游標／頭像','特效','多人協作編輯時顯示其他使用者的彩色游標與頭像，隨機微幅飄移模擬即時在線感，強化 AI CRM 團隊協作場景。',
+ `<div style="width:100%;position:relative;height:70px;background:#0e111a;border-radius:8px;padding:8px;"><div id="v3avatar" style="position:absolute;width:22px;height:22px;border-radius:50%;background:var(--accent2);font-size:10px;display:flex;align-items:center;justify-content:center;top:10px;left:10px;transition:all 1.2s ease-in-out;">A</div><span style="font-size:11px;color:var(--sub);">客戶備註欄位（多人協作中）</span></div>`,
+ `<button class="trigger secondary" onclick="moveAvatar()">模擬協作者移動</button>`,'1200ms');
+// 4 AI suggestion inline ghost text
+card(g4,'AI 建議 Ghost Text','特效','AI 根據上下文即時提供淺色預測文字，按 Tab 即可採納，呈現 AI 協同編輯的新世代體驗。',
+ `<div style="width:100%;position:relative;"><input class="demo-input" id="v4input" oninput="ghostSuggest(this)" placeholder="輸入「跟進」試試 AI 建議..."><span id="v4ghost" style="position:absolute;left:11px;top:9px;font-size:12px;color:#4a5068;pointer-events:none;"></span></div>`,
+ `<span class="speed" style="margin:0;">輸入文字體驗</span>`,'即時');
+
+/* ============ JS logic ============ */
+function saveFlow1(){
+  const b=document.getElementById('s1btn');
+  b.textContent='儲存中...'; b.style.opacity=.8;
+  setTimeout(()=>{b.textContent='✓ 已儲存'; b.style.background='linear-gradient(135deg,var(--ok),#059669)';},700);
+  setTimeout(()=>{b.textContent='儲存'; b.style.opacity=1; b.style.background='linear-gradient(135deg,var(--accent),var(--accent2))';},1700);
+}
+function saveFlow2(){
+  const b=document.getElementById('s2btn');
+  b.style.width='36px'; b.style.borderRadius='50%'; b.textContent='';
+  b.style.background='var(--panel2)'; b.style.border='2px solid var(--accent)';
+  setTimeout(()=>{b.style.width='90px';b.style.borderRadius='10px';b.textContent='已儲存';b.style.border='none';b.style.background='linear-gradient(135deg,var(--ok),#059669)';},900);
+  setTimeout(()=>{b.textContent='儲存變更';b.style.background='linear-gradient(135deg,var(--accent),var(--accent2))';},2000);
+}
+function saveFlow3(){
+  const f=document.getElementById('s3fill');
+  f.style.width='100%';
+  setTimeout(()=>{f.style.transition='none';f.style.width='0%';setTimeout(()=>{f.style.transition='width 1.4s linear';},50);},1600);
+}
+function drawCheck(){
+  document.getElementById('s5circle').style.strokeDashoffset='0';
+  document.getElementById('s5check').style.strokeDashoffset='0';
+  setTimeout(()=>{document.getElementById('s5circle').style.strokeDashoffset='69';document.getElementById('s5check').style.strokeDashoffset='16';},1800);
+}
+let a1timer;
+function autosave1(){
+  clearTimeout(a1timer);
+  const bar=document.getElementById('a1bar');
+  bar.style.transition='none'; bar.style.width='0%';
+  a1timer=setTimeout(()=>{
+    bar.style.transition='width .5s ease'; bar.style.width='100%';
+    setTimeout(()=>{bar.style.transition='opacity .4s'; bar.style.opacity=0; setTimeout(()=>{bar.style.width='0%';bar.style.opacity=1;},400);},600);
+  },300);
+}
+let a2timer;
+function autosave2(){
+  clearTimeout(a2timer);
+  const s=document.getElementById('a2status');
+  s.style.opacity=0;
+  setTimeout(()=>{s.textContent='編輯中...';s.style.opacity=1;},150);
+  a2timer=setTimeout(()=>{
+    s.style.opacity=0;
+    setTimeout(()=>{s.textContent='儲存中...';s.style.opacity=1;},150);
+    setTimeout(()=>{s.style.opacity=0;setTimeout(()=>{s.textContent='已儲存 · 剛剛';s.style.opacity=1;},150);},700);
+  },600);
+}
+function cloudSync(){
+  const dot=document.getElementById('a3dot'); const label=document.getElementById('a3label');
+  dot.style.background='var(--warn)'; dot.style.animation='blink 0.6s infinite'; label.textContent='同步中...';
+  setTimeout(()=>{dot.style.animation='none'; dot.style.background='var(--ok)'; label.textContent='已同步';},1000);
+  setTimeout(()=>{dot.style.background='var(--sub)'; label.textContent='閒置';},2500);
+}
+function undoToast(){
+  const t=document.getElementById('a4toast');
+  t.style.transform='translateY(0)'; t.style.opacity=1;
+  setTimeout(()=>{t.style.transform='translateY(50px)'; t.style.opacity=0;},2200);
+}
+function shakeValidate(){
+  const i=document.getElementById('v1input');
+  const valid=i.value.includes('@');
+  if(!valid){
+    i.style.borderColor='var(--danger)';
+    i.animate([{transform:'translateX(0)'},{transform:'translateX(-6px)'},{transform:'translateX(6px)'},{transform:'translateX(-4px)'},{transform:'translateX(0)'}],{duration:350});
+    setTimeout(()=>{i.style.borderColor='#262c3d';},1500);
+  } else {
+    i.style.borderColor='var(--ok)';
+    setTimeout(()=>{i.style.borderColor='#262c3d';},1500);
+  }
+}
+function liveValidate(el){
+  const c=document.getElementById('v2check');
+  c.style.opacity = el.value.length>=3 ? 1 : 0;
+}
+function moveAvatar(){
+  const a=document.getElementById('v3avatar');
+  const x=Math.random()*180; const y=Math.random()*40;
+  a.style.left=x+'px'; a.style.top=y+'px';
+}
+function ghostSuggest(el){
+  const g=document.getElementById('v4ghost');
+  if(el.value.includes('跟進')){
+    g.textContent=el.value+' → 建議下週三電話跟進';
+    g.style.color='#4a5068';
+    let pre=document.createElement('span'); pre.style.color='transparent';
+  } else { g.textContent=''; }
+}
+</script>
+<style>
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+</style>
+</body>
+</html>

@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI CRM Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+<style>
+:root, [data-theme="light"] {
+  --color-bg: #f7f6f2;
+  --color-surface: #f9f8f5;
+  --color-surface-2: #fbfbf9;
+  --color-surface-offset: #f3f0ec;
+  --color-surface-offset-2: #edeae5;
+  --color-surface-dynamic: #e6e4df;
+  --color-divider: #dcd9d5;
+  --color-border: #d4d1ca;
+  --color-text: #28251d;
+  --color-text-muted: #7a7974;
+  --color-text-faint: #bab9b4;
+  --color-text-inverse: #f9f8f4;
+  --color-primary: #01696f;
+  --color-primary-hover: #0c4e54;
+  --color-primary-active: #0f3638;
+  --color-primary-highlight: #cedcd8;
+  --color-purple: #7a39bb;
+  --color-purple-hover: #5f2699;
+  --color-purple-highlight: #dacfde;
+  --color-warning: #964219;
+  --color-success: #437a22;
+  --color-error: #a12c7b;
+  --color-blue: #006494;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-full: 9999px;
+  --transition-interactive: 180ms cubic-bezier(0.16,1,0.3,1);
+  --shadow-sm: 0 1px 2px oklch(0.2 0.01 80 / 0.06);
+  --shadow-md: 0 4px 12px oklch(0.2 0.01 80 / 0.08);
+  --shadow-lg: 0 12px 32px oklch(0.2 0.01 80 / 0.12);
+  --font-body: 'Satoshi','Work Sans',sans-serif;
+  --font-display: 'Satoshi','Work Sans',sans-serif;
+}
+[data-theme="dark"] {
+  --color-bg: #171614;
+  --color-surface: #1c1b19;
+  --color-surface-2: #201f1d;
+  --color-surface-offset: #1d1c1a;
+  --color-surface-offset-2: #22211f;
+  --color-surface-dynamic: #2d2c2a;
+  --color-divider: #262523;
+  --color-border: #393836;
+  --color-text: #cdccca;
+  --color-text-muted: #797876;
+  --color-text-faint: #5a5957;
+  --color-text-inverse: #2b2a28;
+  --color-primary: #4f98a3;
+  --color-primary-hover: #227f8b;
+  --color-primary-highlight: #313b3b;
+  --color-purple: #a86fdf;
+  --color-purple-hover: #9250d0;
+  --color-purple-highlight: #4e4652;
+  --color-warning: #bb653b;
+  --color-success: #6daa45;
+  --color-error: #d163a7;
+  --color-blue: #5591c7;
+  --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.2);
+  --shadow-md: 0 4px 12px oklch(0 0 0 / 0.3);
+  --shadow-lg: 0 12px 32px oklch(0 0 0 / 0.4);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-font-smoothing:antialiased;scroll-behavior:smooth}
+body{min-height:100dvh;font-family:var(--font-body);font-size:15px;color:var(--color-text);background:var(--color-bg);line-height:1.5}
+button{cursor:pointer;background:none;border:none;font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--color-primary);outline-offset:2px;border-radius:var(--radius-sm)}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
+
+/* ===== APP SHELL ===== */
+.app{display:flex;min-height:100dvh}
+.sidebar{width:240px;background:var(--color-surface);border-right:1px solid var(--color-divider);display:flex;flex-direction:column;flex-shrink:0}
+.sidebar-logo{display:flex;align-items:center;gap:10px;padding:20px 20px 16px}
+.sidebar-logo svg{width:28px;height:28px;color:var(--color-primary)}
+.sidebar-logo span{font-weight:700;font-size:16px;letter-spacing:-0.01em}
+.sidebar-nav{flex:1;padding:8px 12px;overflow-y:auto}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--radius-md);color:var(--color-text-muted);font-size:14px;font-weight:500;transition:background var(--transition-interactive),color var(--transition-interactive);width:100%;text-align:left}
+.nav-item svg{width:18px;height:18px;flex-shrink:0}
+.nav-item:hover{background:var(--color-surface-offset);color:var(--color-text)}
+.nav-item.active{background:color-mix(in oklch, var(--color-primary) 12%, var(--color-surface));color:var(--color-primary);font-weight:600}
+.sidebar-user{padding:14px 16px;border-top:1px solid var(--color-divider);display:flex;align-items:center;gap:10px}
+.avatar{width:32px;height:32px;border-radius:var(--radius-full);background:var(--color-primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0}
+.sidebar-user .info{flex:1;min-width:0}
+.sidebar-user .info strong{display:block;font-size:13px}
+.sidebar-user .info span{font-size:12px;color:var(--color-text-muted)}
+
+.main{flex:1;display:flex;flex-direction:column;min-width:0}
+.topbar{height:64px;border-bottom:1px solid var(--color-divider);display:flex;align-items:center;justify-content:space-between;padding:0 24px;gap:16px;background:var(--color-surface);flex-shrink:0;position:relative;z-index:20}
+.topbar-left{display:flex;align-items:center;gap:14px}
+.page-title{font-size:20px;font-weight:700;letter-spacing:-0.01em}
+.ai-toggle{display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:var(--radius-full);background:var(--color-surface-offset);border:1px solid var(--color-border);font-size:13px;font-weight:600}
+.ai-toggle svg{width:15px;height:15px}
+.switch{width:34px;height:19px;border-radius:var(--radius-full);background:var(--color-border);position:relative;transition:background var(--transition-interactive)}
+.switch::after{content:'';position:absolute;top:2px;left:2px;width:15px;height:15px;border-radius:50%;background:#fff;transition:transform var(--transition-interactive)}
+.switch.on{background:var(--color-purple)}
+.switch.on::after{transform:translateX(15px)}
+.topbar-right{display:flex;align-items:center;gap:10px}
+.icon-btn{width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:var(--radius-md);color:var(--color-text-muted);transition:background var(--transition-interactive),color var(--transition-interactive)}
+.icon-btn:hover{background:var(--color-surface-offset);color:var(--color-text)}
+.icon-btn svg{width:19px;height:19px}
+
+/* New + dropdown */
+.new-menu-wrap{position:relative}
+.new-btn{width:38px;height:38px;border-radius:var(--radius-full);background:var(--color-primary);color:#fff;display:flex;align-items:center;justify-content:center;transition:background var(--transition-interactive),transform var(--transition-interactive)}
+.new-btn:hover{background:var(--color-primary-hover)}
+.new-btn svg{width:20px;height:20px}
+.new-dropdown{position:absolute;top:calc(100% + 8px);right:0;width:200px;background:var(--color-surface-2);border:1px solid var(--color-border);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);padding:6px;opacity:0;visibility:hidden;transform:translateY(-6px);transition:opacity var(--transition-interactive),transform var(--transition-interactive),visibility var(--transition-interactive);z-index:50}
+.new-menu-wrap:hover .new-dropdown,.new-menu-wrap.open .new-dropdown{opacity:1;visibility:visible;transform:translateY(0)}
+.new-dropdown-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--radius-sm);font-size:13.5px;font-weight:500;width:100%;text-align:left;color:var(--color-text)}
+.new-dropdown-item:hover{background:var(--color-surface-offset)}
+.new-dropdown-item svg{width:16px;height:16px;color:var(--color-text-muted)}
+
+/* ===== MAIN CONTENT / DASHBOARD ===== */
+.content{flex:1;overflow-y:auto;padding:24px 24px 100px}
+.dash-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;flex-wrap:wrap;gap:10px}
+.dash-toolbar h1{font-size:22px;font-weight:700}
+.dash-toolbar p{font-size:13px;color:var(--color-text-muted);margin-top:2px}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:var(--radius-md);font-size:13.5px;font-weight:600;transition:background var(--transition-interactive),color var(--transition-interactive),border-color var(--transition-interactive)}
+.btn svg{width:15px;height:15px}
+.btn-primary{background:var(--color-primary);color:#fff}
+.btn-primary:hover{background:var(--color-primary-hover)}
+.btn-ghost{background:var(--color-surface-offset);color:var(--color-text);border:1px solid var(--color-border)}
+.btn-ghost:hover{background:var(--color-surface-offset-2)}
+.btn-ghost.editing{background:var(--color-primary-highlight);color:var(--color-primary);border-color:var(--color-primary)}
+
+/* AI Brief Card */
+.ai-brief{display:none;background:linear-gradient(135deg, color-mix(in oklch, var(--color-purple) 10%, var(--color-surface)), var(--color-surface));border:1px solid color-mix(in oklch, var(--color-purple) 25%, var(--color-border));border-radius:var(--radius-xl);padding:20px 22px;margin-bottom:20px}
+.ai-brief.show{display:block}
+.ai-brief-head{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.ai-brief-head svg{width:20px;height:20px;color:var(--color-purple)}
+.ai-brief-head h2{font-size:15px;font-weight:700}
+.ai-brief-head span{font-size:12px;color:var(--color-text-muted);margin-left:auto}
+.ai-brief-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.ai-brief-col h4{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--color-text-muted);margin-bottom:8px}
+.ai-brief-col ul{list-style:none;display:flex;flex-direction:column;gap:6px}
+.ai-brief-col li{font-size:13px;display:flex;gap:6px;align-items:flex-start;line-height:1.4}
+.ai-brief-col li::before{content:'•';color:var(--color-purple);flex-shrink:0}
+
+/* Grid layout — resizable in BOTH directions */
+.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:16px;align-items:start}
+.widget{grid-column:span 4;background:var(--color-surface-2);border:1px solid var(--color-border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);padding:16px;display:flex;flex-direction:column;position:relative;min-height:160px;resize:both;overflow:auto}
+.widget.span-3{grid-column:span 3}
+.widget.span-6{grid-column:span 6}
+.widget.span-8{grid-column:span 8}
+.widget.span-12{grid-column:span 12}
+.widget-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-shrink:0}
+.widget-head h3{font-size:13.5px;font-weight:700;display:flex;align-items:center;gap:6px}
+.widget-head h3 svg{width:15px;height:15px;color:var(--color-text-muted)}
+.widget-actions{display:flex;gap:2px;opacity:0;transition:opacity var(--transition-interactive)}
+.widget:hover .widget-actions,.editing .widget-actions{opacity:1}
+.widget-actions button{width:24px;height:24px;display:flex;align-items:center;justify-content:center;border-radius:var(--radius-sm);color:var(--color-text-faint)}
+.widget-actions button:hover{background:var(--color-surface-offset);color:var(--color-text)}
+.widget-actions button svg{width:14px;height:14px}
+.widget-body{flex:1;min-height:0}
+.editing .widget{border-style:dashed;cursor:grab}
+.editing .widget:active{cursor:grabbing}
+.editing .widget.dragging{opacity:0.4}
+
+/* AI tag on widget */
+.ai-tag{display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:var(--radius-full);background:var(--color-purple-highlight);color:var(--color-purple);font-size:11.5px;font-weight:700;margin-top:10px;transition:background var(--transition-interactive),transform var(--transition-interactive);align-self:flex-start}
+.ai-tag:hover{background:color-mix(in oklch, var(--color-purple) 22%, var(--color-surface));transform:translateY(-1px)}
+.ai-tag svg{width:12px;height:12px}
+
+/* KPI mini */
+.kpi-val{font-size:26px;font-weight:800;letter-spacing:-0.02em;font-variant-numeric:tabular-nums}
+.kpi-delta{font-size:12px;font-weight:600;margin-top:2px}
+.kpi-delta.up{color:var(--color-success)}
+.kpi-delta.down{color:var(--color-error)}
+.kpi-row{display:flex;align-items:baseline;gap:8px}
+
+.list-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--color-divider);font-size:13px}
+.list-row:last-child{border-bottom:none}
+.list-row .name{flex:1;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.list-row .meta{color:var(--color-text-muted);font-size:12px;flex-shrink:0}
+.badge{padding:2px 8px;border-radius:var(--radius-full);font-size:11px;font-weight:700;flex-shrink:0}
+.badge.warn{background:color-mix(in oklch, var(--color-warning) 18%, var(--color-surface));color:var(--color-warning)}
+.badge.ok{background:color-mix(in oklch, var(--color-success) 18%, var(--color-surface));color:var(--color-success)}
+.badge.info{background:color-mix(in oklch, var(--color-blue) 18%, var(--color-surface));color:var(--color-blue)}
+
+.bar-track{height:8px;background:var(--color-surface-offset);border-radius:var(--radius-full);overflow:hidden;margin-top:4px}
+.bar-fill{height:100%;background:var(--color-primary);border-radius:var(--radius-full)}
+.stage-row{margin-bottom:10px}
+.stage-row .stage-label{display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px}
+.stage-row .stage-label span:last-child{font-weight:700;font-variant-numeric:tabular-nums}
+
+/* Add-widget tile */
+.add-widget-tile{grid-column:span 4;border:1.5px dashed var(--color-border);border-radius:var(--radius-lg);min-height:160px;display:none;align-items:center;justify-content:center;flex-direction:column;gap:8px;color:var(--color-text-muted);transition:border-color var(--transition-interactive),color var(--transition-interactive)}
+.editing .add-widget-tile{display:flex}
+.add-widget-tile:hover{border-color:var(--color-primary);color:var(--color-primary)}
+.add-widget-tile svg{width:24px;height:24px}
+.add-widget-tile span{font-size:13px;font-weight:600}
+
+/* Drawer for adding widgets */
+.drawer-overlay{position:fixed;inset:0;background:oklch(0.15 0 0 / 0.35);opacity:0;visibility:hidden;transition:opacity var(--transition-interactive),visibility var(--transition-interactive);z-index:90}
+.drawer-overlay.show{opacity:1;visibility:visible}
+.drawer{position:fixed;top:0;right:0;height:100%;width:380px;max-width:92vw;background:var(--color-surface-2);border-left:1px solid var(--color-divider);box-shadow:var(--shadow-lg);transform:translateX(100%);transition:transform 260ms cubic-bezier(0.16,1,0.3,1);z-index:95;display:flex;flex-direction:column}
+.drawer.show{transform:translateX(0)}
+.drawer-head{padding:18px 20px;border-bottom:1px solid var(--color-divider);display:flex;align-items:center;justify-content:space-between}
+.drawer-head h3{font-size:16px;font-weight:700}
+.drawer-search{padding:14px 20px;border-bottom:1px solid var(--color-divider)}
+.drawer-search input{width:100%;padding:9px 12px;border-radius:var(--radius-md);border:1px solid var(--color-border);background:var(--color-surface);font-size:13.5px}
+.drawer-body{flex:1;overflow-y:auto;padding:8px 12px}
+.module-group{margin-bottom:6px}
+.module-group-head{display:flex;align-items:center;justify-content:space-between;padding:10px 8px;font-size:12.5px;font-weight:700;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:.03em}
+.module-group.disabled .module-group-head{color:var(--color-text-faint)}
+.module-disabled-note{font-size:11px;font-weight:500;text-transform:none;color:var(--color-text-faint)}
+.widget-option{display:flex;align-items:center;gap:10px;padding:9px 8px;border-radius:var(--radius-md);font-size:13.5px}
+.widget-option:not(.disabled):hover{background:var(--color-surface-offset)}
+.widget-option.disabled{opacity:0.4;cursor:not-allowed}
+.widget-option .wo-icon{width:30px;height:30px;border-radius:var(--radius-sm);background:var(--color-surface-offset);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.widget-option .wo-icon svg{width:15px;height:15px;color:var(--color-text-muted)}
+.widget-option .wo-text{flex:1}
+.widget-option .wo-text strong{display:block;font-size:13px}
+.widget-option .wo-text span{font-size:11.5px;color:var(--color-text-muted)}
+.widget-option .wo-add{width:26px;height:26px;border-radius:var(--radius-full);background:var(--color-primary-highlight);color:var(--color-primary);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.widget-option .wo-add svg{width:14px;height:14px}
+
+/* ===== CHATBOT ===== */
+.chat-fab{position:fixed;bottom:24px;right:24px;width:56px;height:56px;border-radius:var(--radius-full);background:var(--color-primary);color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow-lg);z-index:100;transition:transform var(--transition-interactive),background var(--transition-interactive)}
+.chat-fab:hover{background:var(--color-primary-hover);transform:scale(1.06)}
+.chat-fab svg{width:24px;height:24px}
+.chat-fab .dot{position:absolute;top:6px;right:6px;width:9px;height:9px;border-radius:50%;background:var(--color-error);border:2px solid var(--color-surface-2)}
+
+.chat-panel{position:fixed;bottom:24px;right:24px;width:400px;max-width:92vw;height:min(640px,80vh);background:var(--color-surface-2);border:1px solid var(--color-border);border-radius:var(--radius-xl);box-shadow:var(--shadow-lg);display:flex;flex-direction:column;z-index:100;transform:translateY(16px) scale(0.97);opacity:0;visibility:hidden;transition:transform 220ms cubic-bezier(0.16,1,0.3,1),opacity 220ms,visibility 220ms;overflow:hidden}
+.chat-panel.show{transform:translateY(0) scale(1);opacity:1;visibility:visible}
+.chat-head{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--color-divider);background:linear-gradient(135deg, color-mix(in oklch, var(--color-purple) 8%, var(--color-surface-2)), var(--color-surface-2))}
+.chat-head .chat-avatar{width:34px;height:34px;border-radius:var(--radius-full);background:var(--color-purple);color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.chat-head .chat-avatar svg{width:17px;height:17px}
+.chat-head .chat-title{flex:1;min-width:0}
+.chat-head .chat-title strong{display:block;font-size:14px}
+.chat-head .chat-title span{font-size:11.5px;color:var(--color-success);display:flex;align-items:center;gap:4px}
+.chat-head .chat-title span::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--color-success)}
+.chat-head-actions{display:flex;gap:2px}
+.chat-head-actions button{width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:var(--radius-sm);color:var(--color-text-muted)}
+.chat-head-actions button:hover{background:var(--color-surface-offset);color:var(--color-text)}
+.chat-head-actions svg{width:16px;height:16px}
+
+.chat-body{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:14px}
+.msg{display:flex;gap:9px;max-width:92%}
+.msg.ai{align-self:flex-start}
+.msg.user{align-self:flex-end;flex-direction:row-reverse}
+.msg-avatar{width:26px;height:26px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--color-purple);color:#fff}
+.msg-avatar svg{width:13px;height:13px}
+.msg.user .msg-avatar{background:var(--color-primary)}
+.msg-bubble{background:var(--color-surface-offset);border-radius:var(--radius-lg);padding:11px 13px;font-size:13.5px;line-height:1.5}
+.msg.user .msg-bubble{background:var(--color-primary);color:#fff}
+.msg.ai .msg-bubble{background:var(--color-surface-offset)}
+
+/* AI report card inside chat */
+.chat-report{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg);padding:13px 14px;font-size:13px;width:100%}
+.chat-report h4{font-size:12.5px;font-weight:700;display:flex;align-items:center;gap:6px;margin-bottom:10px;color:var(--color-purple)}
+.chat-report h4 svg{width:14px;height:14px}
+.chat-report-section{margin-bottom:10px}
+.chat-report-section:last-child{margin-bottom:0}
+.chat-report-section .label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--color-text-muted);margin-bottom:5px}
+.chat-report-section ul{list-style:none;display:flex;flex-direction:column;gap:4px}
+.chat-report-section li{display:flex;gap:6px;font-size:12.5px;line-height:1.4}
+.chat-report-section li::before{content:'—';color:var(--color-text-faint);flex-shrink:0}
+.chat-report-section li b{font-weight:700}
+
+.chat-suggest{display:flex;flex-wrap:wrap;gap:6px;margin-top:2px}
+.chat-suggest button{padding:6px 11px;border-radius:var(--radius-full);border:1px solid var(--color-border);font-size:12px;font-weight:600;color:var(--color-text);background:var(--color-surface)}
+.chat-suggest button:hover{background:var(--color-surface-offset);border-color:var(--color-primary)}
+
+.chat-typing{display:flex;gap:4px;padding:6px 2px}
+.chat-typing span{width:6px;height:6px;border-radius:50%;background:var(--color-text-faint);animation:blink 1.2s infinite}
+.chat-typing span:nth-child(2){animation-delay:.2s}
+.chat-typing span:nth-child(3){animation-delay:.4s}
+@keyframes blink{0%,80%,100%{opacity:.3}40%{opacity:1}}
+
+.chat-input-row{border-top:1px solid var(--color-divider);padding:12px;display:flex;gap:8px;align-items:flex-end}
+.chat-input-row textarea{flex:1;resize:none;border:1px solid var(--color-border);border-radius:var(--radius-lg);padding:10px 12px;font-size:13.5px;font-family:inherit;background:var(--color-surface);max-height:100px;min-height:40px}
+.chat-send{width:38px;height:38px;border-radius:var(--radius-full);background:var(--color-primary);color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.chat-send:hover{background:var(--color-primary-hover)}
+.chat-send svg{width:16px;height:16px}
+
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{transition-duration:.01ms!important;animation-duration:.01ms!important}}
+
+/* ===== MOBILE ===== */
+@media (max-width: 900px){
+  .sidebar{display:none}
+  .content{padding:16px 16px 100px}
+  .grid{grid-template-columns:repeat(2,1fr)}
+  .widget,.widget.span-3,.widget.span-4,.widget.span-6,.widget.span-8,.widget.span-12{grid-column:span 2}
+  .add-widget-tile{grid-column:span 2}
+  .ai-brief-grid{grid-template-columns:1fr}
+  .chat-panel{width:100%;height:100%;bottom:0;right:0;border-radius:0}
+  .chat-fab{bottom:16px;right:16px}
+  .new-dropdown{right:-8px}
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <svg viewBox="0 0 32 32" fill="none"><path d="M16 3L27 9V23L16 29L5 23V9L16 3Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M16 3V15M16 15L27 9M16 15L5 9M16 15V29" stroke="currentColor" stroke-width="2"/></svg>
+      <span>Nexus CRM</span>
+    </div>
+    <nav class="sidebar-nav">
+      <button class="nav-item active"><svg><use href="#i-grid"/></svg>Dashboard</button>
+      <button class="nav-item"><svg><use href="#i-users"/></svg>Contacts</button>
+      <button class="nav-item"><svg><use href="#i-building"/></svg>Companies</button>
+      <button class="nav-item"><svg><use href="#i-target"/></svg>Deals</button>
+      <button class="nav-item"><svg><use href="#i-folder"/></svg>Projects</button>
+      <button class="nav-item"><svg><use href="#i-check"/></svg>Tasks</button>
+      <button class="nav-item"><svg><use href="#i-truck"/></svg>Shipping</button>
+      <button class="nav-item"><svg><use href="#i-team"/></svg>Team</button>
+      <button class="nav-item"><svg><use href="#i-settings"/></svg>Settings</button>
+    </nav>
+    <div class="sidebar-user">
+      <div class="avatar">TL</div>
+      <div class="info"><strong>Terrence Lam</strong><span>Terrence_PRO</span></div>
+      <button class="icon-btn" style="width:28px;height:28px" aria-label="Toggle theme" data-theme-toggle><svg style="width:15px;height:15px"><use href="#i-moon"/></svg></button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main">
+    <header class="topbar">
+      <div class="topbar-left">
+        <h1 class="page-title">Dashboard</h1>
+        <div class="ai-toggle">
+          <svg><use href="#i-sparkle"/></svg>
+          <span>AI 秘書</span>
+          <button class="switch" id="aiSwitch" role="switch" aria-checked="false" aria-label="Toggle AI mode"></button>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <button class="icon-btn" aria-label="Search"><svg><use href="#i-search"/></svg></button>
+        <button class="icon-btn" aria-label="Notifications"><svg><use href="#i-bell"/></svg></button>
+        <div class="new-menu-wrap" id="newMenuWrap">
+          <button class="new-btn" aria-label="Create new" id="newBtn"><svg><use href="#i-plus"/></svg></button>
+          <div class="new-dropdown" role="menu">
+            <button class="new-dropdown-item"><svg><use href="#i-check"/></svg>New Task</button>
+            <button class="new-dropdown-item"><svg><use href="#i-users"/></svg>New Contact</button>
+            <button class="new-dropdown-item"><svg><use href="#i-building"/></svg>New Company</button>
+            <button class="new-dropdown-item"><svg><use href="#i-target"/></svg>New Deal</button>
+            <button class="new-dropdown-item"><svg><use href="#i-folder"/></svg>New Project</button>
+            <button class="new-dropdown-item"><svg><use href="#i-truck"/></svg>New Shipment</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="content">
+      <div class="dash-toolbar">
+        <div>
+          <h1>早晨,Terrence 👋</h1>
+          <p id="dateLine">2026年7月28日 · 星期二</p>
+        </div>
+        <div style="display:flex;gap:10px">
+          <button class="btn btn-ghost" id="editBtn"><svg><use href="#i-layout"/></svg>自訂版面</button>
+          <button class="btn btn-primary" id="doneBtn" style="display:none"><svg><use href="#i-check"/></svg>完成</button>
+        </div>
+      </div>
+
+      <!-- AI Daily Brief -->
+      <section class="ai-brief" id="aiBrief">
+        <div class="ai-brief-head">
+          <svg><use href="#i-sparkle"/></svg>
+          <h2>AI 每日簡報</h2>
+          <span>基於過去 24 小時數據 · 09:02 更新</span>
+        </div>
+        <div class="ai-brief-grid">
+          <div class="ai-brief-col">
+            <h4>今日重點</h4>
+            <ul>
+              <li>3 個 Deal 即將到期,總值 $186萬</li>
+              <li>旭輝空運訂單延誤 2 天,需要跟進</li>
+              <li>本週團隊完成率 78%,落後目標 12%</li>
+            </ul>
+          </div>
+          <div class="ai-brief-col">
+            <h4>會議準備</h4>
+            <ul>
+              <li>10:30 同 林海珊 開 Deal Review</li>
+              <li>14:00 客戶續約會議,已準備摘要</li>
+            </ul>
+          </div>
+          <div class="ai-brief-col">
+            <h4>風險提示</h4>
+            <ul>
+              <li>2 張貨運單超過 SLA 48 小時</li>
+              <li>1 個高價值客戶 30 日無互動</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- WIDGET GRID -->
+      <div class="grid" id="widgetGrid"></div>
+    </main>
+  </div>
+</div>
+
+<!-- Drawer -->
+<div class="drawer-overlay" id="drawerOverlay"></div>
+<aside class="drawer" id="drawer">
+  <div class="drawer-head">
+    <h3>新增小工具</h3>
+    <button class="icon-btn" id="drawerClose"><svg><use href="#i-x"/></svg></button>
+  </div>
+  <div class="drawer-search"><input type="text" placeholder="搜尋小工具..." id="widgetSearch"></div>
+  <div class="drawer-body" id="drawerBody"></div>
+</aside>
+
+<!-- Chat FAB -->
+<button class="chat-fab" id="chatFab" aria-label="Open AI assistant">
+  <svg><use href="#i-sparkle"/></svg>
+  <span class="dot"></span>
+</button>
+
+<!-- Chat Panel -->
+<section class="chat-panel" id="chatPanel" aria-label="AI Assistant Chat">
+  <div class="chat-head">
+    <div class="chat-avatar"><svg><use href="#i-sparkle"/></svg></div>
+    <div class="chat-title"><strong>AI 私人秘書</strong><span>在線</span></div>
+    <div class="chat-head-actions">
+      <button aria-label="Minimize" id="chatMin"><svg><use href="#i-minus"/></svg></button>
+      <button aria-label="Close" id="chatClose"><svg><use href="#i-x"/></svg></button>
+    </div>
+  </div>
+  <div class="chat-body" id="chatBody"></div>
+  <div class="chat-input-row">
+    <textarea id="chatInput" placeholder="問AI任何關於今日業務嘅問題..." rows="1"></textarea>
+    <button class="chat-send" id="chatSend" aria-label="Send"><svg><use href="#i-send"/></svg></button>
+  </div>
+</section>
+
+<!-- ICONS -->
+<svg style="display:none">
+<symbol id="i-grid" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+<symbol id="i-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3"/><path d="M2 20c0-3.5 3-6 7-6s7 2.5 7 6"/><circle cx="17" cy="9" r="2.5"/><path d="M22 20c0-2.8-1.8-4.8-4-5.6"/></symbol>
+<symbol id="i-building" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M9 8h1M14 8h1M9 12h1M14 12h1M9 16h1M14 16h1"/></symbol>
+<symbol id="i-target" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></symbol>
+<symbol id="i-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6a1 1 0 011-1h5l2 2h9a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1z"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12l5 5L20 6"/></symbol>
+<symbol id="i-truck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="6" width="13" height="10"/><path d="M14 10h4l3 3v3h-7z"/><circle cx="6" cy="19" r="2"/><circle cx="17.5" cy="19" r="2"/></symbol>
+<symbol id="i-team" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="7" cy="8" r="3"/><circle cx="17" cy="8" r="3"/><path d="M2 20c0-3 2.5-5 5-5M22 20c0-3-2.5-5-5-5"/><path d="M7 20c0-3.5 2.5-5.5 5-5.5s5 2 5 5.5"/></symbol>
+<symbol id="i-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.2 4.2l2.8 2.8M17 17l2.8 2.8M1 12h4M19 12h4M4.2 19.8L7 17M17 7l2.8-2.8"/></symbol>
+<symbol id="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></symbol>
+<symbol id="i-sparkle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5z"/><path d="M19 15l.7 2.1L22 18l-2.3.9L19 21l-.7-2.1L16 18l2.3-.9z"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></symbol>
+<symbol id="i-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9a6 6 0 1112 0c0 4 1.5 5.5 1.5 5.5H4.5S6 13 6 9z"/><path d="M10 19a2 2 0 004 0"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M12 5v14M5 12h14"/></symbol>
+<symbol id="i-layout" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="1"/><path d="M3 9h18M9 21V9"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></symbol>
+<symbol id="i-minus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/></symbol>
+<symbol id="i-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/></symbol>
+<symbol id="i-drag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/></symbol>
+<symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2m2 0l-1 14a1 1 0 01-1 1H7a1 1 0 01-1-1L5 6"/></symbol>
+<symbol id="i-dollar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></symbol>
+<symbol id="i-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></symbol>
+<symbol id="i-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M12 20V4M20 20v-7"/></symbol>
+<symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9L2.5 17a1.5 1.5 0 001.3 2.2h16.4a1.5 1.5 0 001.3-2.2L13.7 3.9a1.5 1.5 0 00-2.6 0z"/></symbol>
+</svg>
+
+<script>
+lucide.createIcons?.();
+
+/* ===== THEME TOGGLE ===== */
+(function(){
+  const t=document.querySelector('[data-theme-toggle]'),r=document.documentElement;
+  let d=matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';
+  r.setAttribute('data-theme',d);
+})();
+
+/* ===== AI MODE TOGGLE ===== */
+const aiSwitch=document.getElementById('aiSwitch');
+const aiBrief=document.getElementById('aiBrief');
+let aiOn=false;
+aiSwitch.addEventListener('click',()=>{
+  aiOn=!aiOn;
+  aiSwitch.classList.toggle('on',aiOn);
+  aiSwitch.setAttribute('aria-checked',aiOn);
+  aiBrief.classList.toggle('show',aiOn);
+  document.querySelectorAll('.ai-tag').forEach(t=>t.style.display=aiOn?'inline-flex':'none');
+});
+
+/* ===== NEW + DROPDOWN ===== */
+const newMenuWrap=document.getElementById('newMenuWrap');
+const newBtn=document.getElementById('newBtn');
+newBtn.addEventListener('click',(e)=>{
+  e.stopPropagation();
+  newMenuWrap.classList.toggle('open');
+});
+document.addEventListener('click',(e)=>{
+  if(!newMenuWrap.contains(e.target)) newMenuWrap.classList.remove('open');
+});
+
+/* ===== WIDGET DEFINITIONS ===== */
+const modules = [
+  {id:'contacts',name:'Contacts',enabled:true,icon:'i-users',widgets:[
+    {id:'c1',name:'新增聯絡人',desc:'本週新增數量趨勢',span:4,ai:'3位聯絡人30日內無互動,建議跟進。'},
+    {id:'c2',name:'待跟進聯絡人',desc:'需要行動的清單',span:4,ai:null},
+    {id:'c3',name:'資料完整度',desc:'聯絡人資料缺漏比率',span:3,ai:null},
+    {id:'c4',name:'最近互動',desc:'最新5筆互動記錄',span:4,ai:null},
+    {id:'c5',name:'來源分布',desc:'聯絡人獲取渠道佔比',span:3,ai:null},
+  ]},
+  {id:'companies',name:'Companies',enabled:true,icon:'i-building',widgets:[
+    {id:'co1',name:'公司總數',desc:'累計客戶公司數量',span:3,ai:null},
+    {id:'co2',name:'客戶分級',desc:'A/B/C級客戶分布',span:4,ai:null},
+    {id:'co3',name:'續約提醒',desc:'30日內到期合約',span:4,ai:'旭輝空運合約7日後到期,尚未安排續約會議。'},
+    {id:'co4',name:'健康分數',desc:'客戶健康評分排名',span:4,ai:null},
+    {id:'co5',name:'行業分布',desc:'客戶所屬行業佔比',span:3,ai:null},
+  ]},
+  {id:'deals',name:'Deals',enabled:true,icon:'i-target',widgets:[
+    {id:'d1',name:'Pipeline 總值',desc:'進行中Deal總金額',span:3,ai:null},
+    {id:'d2',name:'階段分布',desc:'各銷售階段Deal數量',span:6,ai:null},
+    {id:'d3',name:'停滯提醒',desc:'超過14日無更新的Deal',span:4,ai:'3個Deal超過14日無更新,合共$86萬,建議優先跟進。'},
+    {id:'d4',name:'預測達成率',desc:'本季目標完成進度',span:4,ai:null},
+    {id:'d5',name:'最近成交',desc:'本週已成交Deal清單',span:4,ai:null},
+  ]},
+  {id:'projects',name:'Projects',enabled:true,icon:'i-folder',widgets:[
+    {id:'p1',name:'進行中數量',desc:'目前活躍項目總數',span:3,ai:null},
+    {id:'p2',name:'里程碑追蹤',desc:'即將到期的里程碑',span:4,ai:null},
+    {id:'p3',name:'進度總覽',desc:'各項目完成百分比',span:6,ai:null},
+    {id:'p4',name:'資源分配',desc:'各項目人力分配狀況',span:4,ai:null},
+  ]},
+  {id:'tasks',name:'Tasks',enabled:true,icon:'i-check',widgets:[
+    {id:'t1',name:'今日待辦',desc:'今天需完成的任務',span:4,ai:null},
+    {id:'t2',name:'逾期任務',desc:'已超過期限未完成',span:4,ai:'2個逾期任務涉及高價值客戶,建議即時處理。'},
+    {id:'t3',name:'優先清單',desc:'按重要性排序的任務',span:4,ai:null},
+    {id:'t4',name:'完成率',desc:'本週任務完成百分比',span:3,ai:null},
+  ]},
+  {id:'calendar',name:'Calendar',enabled:true,icon:'i-calendar',widgets:[
+    {id:'cal1',name:'未來會議',desc:'今日及明日會議清單',span:4,ai:null},
+    {id:'cal2',name:'會議密度',desc:'本週會議時數分布',span:4,ai:null},
+    {id:'cal3',name:'拜訪安排',desc:'客戶拜訪行程',span:4,ai:null},
+  ]},
+  {id:'shipping',name:'Shipping',enabled:true,icon:'i-truck',widgets:[
+    {id:'s1',name:'待處理訂單',desc:'尚未派單的貨運單',span:4,ai:null},
+    {id:'s2',name:'延誤警示',desc:'超過SLA時限的訂單',span:4,ai:'2張貨運單超過SLA 48小時,涉及深圳弘安國際物流。'},
+    {id:'s3',name:'狀態分布',desc:'各運輸狀態訂單佔比',span:4,ai:null},
+    {id:'s4',name:'路線表現',desc:'各航線準時率排名',span:4,ai:null},
+    {id:'s5',name:'運費總覽',desc:'本月運費支出趨勢',span:4,ai:null},
+  ]},
+  {id:'team',name:'Team',enabled:true,icon:'i-team',widgets:[
+    {id:'te1',name:'工作量分布',desc:'團隊成員任務負荷',span:4,ai:'林海珊本週工作量超出120%,建議重新分配。'},
+    {id:'te2',name:'在線狀態',desc:'即時團隊在線情況',span:3,ai:null},
+    {id:'te3',name:'目標達成率',desc:'個人與團隊KPI進度',span:4,ai:null},
+    {id:'te4',name:'排行榜',desc:'本月表現排名',span:4,ai:null},
+  ]},
+  {id:'business',name:'Business',enabled:true,icon:'i-chart',widgets:[
+    {id:'b1',name:'訂閱狀態',desc:'帳戶方案與用量',span:4,ai:null},
+    {id:'b2',name:'系統用量',desc:'API與儲存使用率',span:4,ai:null},
+  ]},
+];
+
+/* Default layout for every new user — cross-role balanced */
+const defaultLayout = ['d2','t1','s1','te2','d3','cal1','t3','co3','s3'];
+
+const widgetById = {};
+modules.forEach(m=>m.widgets.forEach(w=>widgetById[w.id]={...w,moduleId:m.id,moduleName:m.name,moduleIcon:m.icon}));
+
+let currentLayout = [...defaultLayout];
+let editing = false;
+
+function widgetIcon(mod){return `<svg><use href="#${mod}"/></svg>`}
+
+function renderWidgetBody(w){
+  // simple representative bodies per widget id for variety
+  const bodies = {
+    d2: `<div class="stage-row"><div class="stage-label"><span>洽談中</span><span>$420k</span></div><div class="bar-track"><div class="bar-fill" style="width:70%"></div></div></div>
+         <div class="stage-row"><div class="stage-label"><span>報價</span><span>$310k</span></div><div class="bar-track"><div class="bar-fill" style="width:52%;background:var(--color-blue)"></div></div></div>
+         <div class="stage-row"><div class="stage-label"><span>成交</span><span>$186k</span></div><div class="bar-track"><div class="bar-fill" style="width:30%;background:var(--color-success)"></div></div></div>`,
+    t1: `<div class="list-row"><span class="name">跟進旭輝空運續約</span><span class="badge warn">今日</span></div>
+         <div class="list-row"><span class="name">準備客戶簡報</span><span class="badge info">今日</span></div>
+         <div class="list-row"><span class="name">審核物流報價</span><span class="badge ok">已完成</span></div>`,
+    s1: `<div class="list-row"><span class="name">深圳絆強物流</span><span class="meta">待派單</span></div>
+         <div class="list-row"><span class="name">深圳弘安國際</span><span class="badge warn">延誤</span></div>
+         <div class="list-row"><span class="name">深圳兴安通达</span><span class="meta">待派單</span></div>`,
+    te2: `<div class="kpi-row"><div class="kpi-val">7/9</div></div><div class="kpi-delta up">在線</div>
+          <div class="list-row" style="margin-top:8px"><span class="name">林海珊</span><span class="badge ok">在線</span></div>
+          <div class="list-row"><span class="name">陳偉明</span><span class="meta">離開</span></div>`,
+    d3: `<div class="list-row"><span class="name">深圳快豹跨境物流</span><span class="meta">18日</span></div>
+         <div class="list-row"><span class="name">深圳一站物流</span><span class="meta">21日</span></div>`,
+    cal1: `<div class="list-row"><span class="name">10:30 Deal Review</span><span class="meta">30分</span></div>
+           <div class="list-row"><span class="name">14:00 客戶續約會議</span><span class="meta">1時</span></div>`,
+    t3: `<div class="list-row"><span class="name">回覆客戶詢價</span><span class="badge warn">高</span></div>
+         <div class="list-row"><span class="name">更新CRM資料</span><span class="badge info">中</span></div>`,
+    co3: `<div class="list-row"><span class="name">旭輝空運有限公司</span><span class="badge warn">7日後</span></div>
+          <div class="list-row"><span class="name">深圳華良物流集團</span><span class="badge info">21日後</span></div>`,
+    s3: `<div class="stage-row"><div class="stage-label"><span>運送中</span><span>62%</span></div><div class="bar-track"><div class="bar-fill" style="width:62%"></div></div></div>
+         <div class="stage-row"><div class="stage-label"><span>已完成</span><span>28%</span></div><div class="bar-track"><div class="bar-fill" style="width:28%;background:var(--color-success)"></div></div></div>`,
+  };
+  return bodies[w.id] || `<div class="kpi-row"><span class="kpi-val">${Math.floor(Math.random()*400+50)}</span></div><div class="kpi-delta up">+${Math.floor(Math.random()*20+2)}% vs 上週</div>`;
+}
+
+function renderGrid(){
+  const grid = document.getElementById('widgetGrid');
+  grid.innerHTML = '';
+  currentLayout.forEach(id=>{
+    const w = widgetById[id];
+    if(!w) return;
+    const el = document.createElement('div');
+    el.className = `widget span-${w.span}`;
+    el.draggable = editing;
+    el.dataset.id = id;
+    el.innerHTML = `
+      <div class="widget-head">
+        <h3>${widgetIcon(w.moduleIcon)}${w.name}</h3>
+        <div class="widget-actions">
+          <button class="drag-handle" aria-label="拖曳排序"><svg><use href="#i-drag"/></svg></button>
+          <button class="remove-widget" aria-label="移除小工具"><svg><use href="#i-trash"/></svg></button>
+        </div>
+      </div>
+      <div class="widget-body">${renderWidgetBody(w)}</div>
+      ${w.ai ? `<button class="ai-tag" style="display:${aiOn?'inline-flex':'none'}" data-insight="${w.ai.replace(/"/g,'&quot;')}"><svg><use href="#i-sparkle"/></svg>AI advise</button>` : ''}
+    `;
+    grid.appendChild(el);
+    el.querySelector('.remove-widget').addEventListener('click',(e)=>{
+      e.stopPropagation();
+      currentLayout = currentLayout.filter(x=>x!==id);
+      renderGrid();
+    });
+  });
+  // add tile
+  const addTile = document.createElement('div');
+  addTile.className = 'add-widget-tile';
+  addTile.innerHTML = `<svg><use href="#i-plus"/></svg><span>新增小工具</span>`;
+  addTile.addEventListener('click',openDrawer);
+  grid.appendChild(addTile);
+
+  attachDragEvents();
+  attachAiTagEvents();
+}
+
+/* Drag reorder */
+function attachDragEvents(){
+  const grid = document.getElementById('widgetGrid');
+  let dragEl = null;
+  grid.querySelectorAll('.widget').forEach(w=>{
+    w.addEventListener('dragstart',()=>{dragEl=w;w.classList.add('dragging')});
+    w.addEventListener('dragend',()=>{dragEl=null;w.classList.remove('dragging');syncLayoutFromDOM()});
+    w.addEventListener('dragover',(e)=>{
+      e.preventDefault();
+      if(!dragEl || dragEl===w) return;
+      const rect = w.getBoundingClientRect();
+      const before = (e.clientX - rect.left) < rect.width/2;
+      w.parentNode.insertBefore(dragEl, before ? w : w.nextSibling);
+    });
+  });
+}
+function syncLayoutFromDOM(){
+  currentLayout = [...document.querySelectorAll('#widgetGrid .widget')].map(w=>w.dataset.id);
+}
+
+function attachAiTagEvents(){
+  document.querySelectorAll('.ai-tag').forEach(tag=>{
+    tag.addEventListener('click',()=>{
+      openChat();
+      pushAiInsight(tag.dataset.insight);
+    });
+  });
+}
+
+/* ===== EDIT MODE ===== */
+const editBtn=document.getElementById('editBtn');
+const doneBtn=document.getElementById('doneBtn');
+editBtn.addEventListener('click',()=>{
+  editing=true;
+  document.body.classList.add('editing');
+  editBtn.style.display='none';
+  doneBtn.style.display='inline-flex';
+  renderGrid();
+});
+doneBtn.addEventListener('click',()=>{
+  editing=false;
+  document.body.classList.remove('editing');
+  editBtn.style.display='inline-flex';
+  doneBtn.style.display='none';
+  renderGrid();
+});
+
+/* ===== DRAWER ===== */
+const drawer=document.getElementById('drawer');
+const drawerOverlay=document.getElementById('drawerOverlay');
+const drawerBody=document.getElementById('drawerBody');
+function renderDrawer(filter=''){
+  drawerBody.innerHTML='';
+  modules.forEach(mod=>{
+    const filtered = mod.widgets.filter(w=>w.name.toLowerCase().includes(filter.toLowerCase()));
+    if(filter && filtered.length===0) return;
+    const group=document.createElement('div');
+    group.className = 'module-group'+(mod.enabled?'':' disabled');
+    group.innerHTML = `<div class="module-group-head"><span>${mod.name}</span>${mod.enabled?'':'<span class="module-disabled-note">模組已停用</span>'}</div>`;
+    (filter?filtered:mod.widgets).forEach(w=>{
+      const already = currentLayout.includes(w.id);
+      const opt=document.createElement('div');
+      opt.className='widget-option'+(!mod.enabled||already?' disabled':'');
+      opt.innerHTML=`
+        <div class="wo-icon">${widgetIcon(mod.icon)}</div>
+        <div class="wo-text"><strong>${w.name}</strong><span>${w.desc}</span></div>
+        <div class="wo-add"><svg><use href="#${already?'i-check':'i-plus'}"/></svg></div>
+      `;
+      if(mod.enabled && !already){
+        opt.addEventListener('click',()=>{
+          currentLayout.push(w.id);
+          renderGrid();
+          renderDrawer(document.getElementById('widgetSearch').value);
+        });
+      }
+      group.appendChild(opt);
+    });
+    drawerBody.appendChild(group);
+  });
+}
+function openDrawer(){
+  renderDrawer();
+  drawer.classList.add('show');
+  drawerOverlay.classList.add('show');
+}
+function closeDrawer(){
+  drawer.classList.remove('show');
+  drawerOverlay.classList.remove('show');
+}
+document.getElementById('drawerClose').addEventListener('click',closeDrawer);
+drawerOverlay.addEventListener('click',closeDrawer);
+document.getElementById('widgetSearch').addEventListener('input',(e)=>renderDrawer(e.target.value));
+
+/* ===== CHATBOT ===== */
+const chatFab=document.getElementById('chatFab');
+const chatPanel=document.getElementById('chatPanel');
+const chatBody=document.getElementById('chatBody');
+const chatInput=document.getElementById('chatInput');
+let chatOpened=false;
+
+function openChat(){
+  chatPanel.classList.add('show');
+  if(!chatOpened){
+    chatOpened=true;
+    sendInitialReport();
+  }
+}
+function closeChat(){chatPanel.classList.remove('show')}
+chatFab.addEventListener('click',openChat);
+document.getElementById('chatClose').addEventListener('click',closeChat);
+document.getElementById('chatMin').addEventListener('click',closeChat);
+
+function appendMsg(role,html){
+  const m=document.createElement('div');
+  m.className=`msg ${role}`;
+  m.innerHTML=`<div class="msg-avatar">${role==='ai'?'<svg><use href="#i-sparkle"/></svg>':'TL'}</div><div class="msg-bubble">${html}</div>`;
+  chatBody.appendChild(m);
+  chatBody.scrollTop=chatBody.scrollHeight;
+  return m;
+}
+function showTyping(){
+  const t=document.createElement('div');
+  t.className='msg ai';
+  t.id='typingIndicator';
+  t.innerHTML=`<div class="msg-avatar"><svg><use href="#i-sparkle"/></svg></div><div class="msg-bubble"><div class="chat-typing"><span></span><span></span><span></span></div></div>`;
+  chatBody.appendChild(t);
+  chatBody.scrollTop=chatBody.scrollHeight;
+}
+function removeTyping(){document.getElementById('typingIndicator')?.remove()}
+
+function sendInitialReport(){
+  showTyping();
+  setTimeout(()=>{
+    removeTyping();
+    appendMsg('ai', `
+      <div class="chat-report">
+        <h4><svg><use href="#i-sparkle"/></svg>今日業務摘要</h4>
+        <div class="chat-report-section">
+          <div class="label">重點</div>
+          <ul>
+            <li><b>3個Deal</b>即將到期,合共$186萬</li>
+            <li>旭輝空運訂單延誤<b>2天</b>,已標記優先</li>
+            <li>本週團隊完成率<b>78%</b>,落後目標12%</li>
+          </ul>
+        </div>
+        <div class="chat-report-section">
+          <div class="label">風險</div>
+          <ul>
+            <li>2張貨運單超過SLA<b>48小時</b></li>
+            <li>1個高價值客戶<b>30日</b>無互動記錄</li>
+          </ul>
+        </div>
+      </div>
+    `);
+    setTimeout(()=>{
+      appendMsg('ai', `我已經幫你準備好今日重點。想我幫手做啲乜?`);
+      appendSuggestions(['幫我安排跟進旭輝空運','分析呢週Deal轉換率','邊個客戶最需要關注?']);
+    },500);
+  },900);
+}
+
+function pushAiInsight(text){
+  showTyping();
+  setTimeout(()=>{
+    removeTyping();
+    appendMsg('ai', `<div class="chat-report"><h4><svg><use href="#i-sparkle"/></svg>AI Advise</h4><div class="chat-report-section"><ul><li>${text}</li></ul></div></div>`);
+    appendSuggestions(['安排跟進任務','顯示相關記錄','忽略呢個提示']);
+  },700);
+}
+
+function appendSuggestions(list){
+  const wrap=document.createElement('div');
+  wrap.className='chat-suggest';
+  list.forEach(s=>{
+    const b=document.createElement('button');
+    b.textContent=s;
+    b.addEventListener('click',()=>{userSend(s)});
+    wrap.appendChild(b);
+  });
+  chatBody.appendChild(wrap);
+  chatBody.scrollTop=chatBody.scrollHeight;
+}
+
+function userSend(text){
+  if(!text.trim()) return;
+  appendMsg('user', text);
+  chatInput.value='';
+  showTyping();
+  setTimeout(()=>{
+    removeTyping();
+    appendMsg('ai', `已收到:「${text}」。我會根據你嘅CRM數據整理相關資訊並跟進。`);
+  },900);
+}
+document.getElementById('chatSend').addEventListener('click',()=>userSend(chatInput.value));
+chatInput.addEventListener('keydown',(e)=>{
+  if(e.key==='Enter' && !e.shiftKey){e.preventDefault();userSend(chatInput.value)}
+});
+chatInput.addEventListener('input',()=>{
+  chatInput.style.height='auto';
+  chatInput.style.height=Math.min(chatInput.scrollHeight,100)+'px';
+});
+
+/* init */
+renderGrid();
+</script>
+</body>
+</html>
