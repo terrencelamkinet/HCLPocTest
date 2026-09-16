@@ -6,6 +6,9 @@ import contactConfig from './config'
 import { TouchpointsTab, NotesTab, ProjectsTab, TasksTab } from './ContactDetailTabs'
 import { useEntity } from '../hooks/useEntity'
 import { V2ActivityTimeline } from '../shared/V2ActivityTimeline'
+import ContactNameCards from './ContactNameCards'
+/* 2026-09-15：欄位級歷史（contact_changes v1）— 同 Timeline 同一 tab 下面，唔開新 tab */
+import ContactChangeHistory from './ContactChangeHistory'
 import { FieldsRenderer } from '../shared/FieldsRenderer'
 import { buildPayload, apiErrorToString } from '../shared/field-utils'
 import { isModuleEnabled } from '../enabled-modules'
@@ -126,7 +129,17 @@ export default function ContactDetailPage() {
   const tabs: DetailTab[] = [
     /* SPEC detail-polish T2: 移除重複 — Overview 同 Timeline 之前 render 一模一樣嘅 activity；
        Deal module 未開發 → 唔 mount 空 Deals tab（sales 開返先加返） */
-    { key: 'timeline', label: t('common.timeline', { defaultValue: 'Timeline' }), render: () => <V2ActivityTimeline entityId={id!} filterType="contact" /> },
+    {
+      key: 'timeline',
+      label: t('common.timeline', { defaultValue: 'Timeline' }),
+      render: () => (
+        <>
+          <V2ActivityTimeline entityId={id!} filterType="contact" />
+          {/* 「幾時轉、轉咗咩」：欄位級 before → after（後端 contact_changes，append-only + RLS） */}
+          <ContactChangeHistory contactId={id!} />
+        </>
+      ),
+    },
     { key: 'tasks', label: t('common.tasks', { defaultValue: 'Tasks' }), render: () => <TasksTab entity={entity} moduleConfig={contactConfig} refresh={refresh} /> },
     { key: 'touchpoints', label: t('common.touchpoints', { defaultValue: 'Touchpoints' }), render: () => <TouchpointsTab entity={entity} moduleConfig={contactConfig} refresh={refresh} /> },
     { key: 'notes', label: t('common.notes', { defaultValue: 'Notes' }), render: () => <NotesTab entity={entity} moduleConfig={contactConfig} refresh={refresh} /> },
@@ -181,6 +194,13 @@ export default function ContactDetailPage() {
             ],
           },
           {
+            /* 2026-09-15 Terrence：名片區放喺 General Info 同 Ownership 中間。
+               有 name card preview、click 放大（放大動畫）；舊卡一樣可以 preview。 */
+            title: t('nameCard.sectionTitle', { defaultValue: '名片' }),
+            fields: [],
+            content: <ContactNameCards contactId={id!} />,
+          },
+          {
             title: t('common.ownership', { defaultValue: 'Ownership' }),
             fields: [
               { label: t('fields.contactType', { defaultValue: 'Contact Type' }), value: entity.contact_type || '—' },
@@ -197,18 +217,6 @@ export default function ContactDetailPage() {
         }] : []}
         tabs={tabs}
       />
-      {editOpen && (
-        <div className="nx-inline-edit-panel">
-          <div className="nx-inline-edit-title">{t('common.editing', { defaultValue: '編輯' })}</div>
-          <div className="nx-inline-edit-grid">
-            {detailFields.map(f => (
-              <FieldsRenderer key={f.key} field={f} entity={entity} form={form}
-                onChange={handleChange} editOpen={true}
-                relationData={{ companies }} />
-            ))}
-          </div>
-        </div>
-      )}
     </>
   )
 }

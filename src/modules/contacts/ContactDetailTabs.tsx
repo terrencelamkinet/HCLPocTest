@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import SvcIcon from '../../components/SvcIcon'
 import { apiClient } from '../../lib/api'
+import { sanitizeHtml } from '../../lib/sanitizeHtml'
 import i18n from '../../i18n/config'
 import type { EntityRecord, ModuleConfig } from '../module-types'
 
@@ -391,7 +392,7 @@ export function NotesTab({ entity, refresh }: { entity: EntityRecord; moduleConf
                 {/* 筆記內容係 rich-editor HTML（同 EntityNotesPanel 一致）→ 唔可以直接 print string，
                     否則用戶會見到 <p>/<span> 原碼。用返 nxe-rendered-content 統一 render。 */}
                 {n.content && (
-                  <div className="nxe-rendered-content list-sub mt-1" dangerouslySetInnerHTML={{ __html: n.content }} />
+                  <div className="nxe-rendered-content list-sub mt-1" dangerouslySetInnerHTML={{ __html: sanitizeHtml(n.content) }} />
                 )}
                 <p className="list-sub mt-1 text-xs">{timeAgo(n.created_at)}</p>
               </div>

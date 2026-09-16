@@ -10,6 +10,7 @@ import { buildPayload, apiErrorToString } from '../shared/field-utils'
 import { isModuleEnabled } from '../enabled-modules'
 import { apiClient } from '../../lib/api'
 import EntityNotesPanel from '../shared/EntityNotesPanel'
+import { htmlToPlainText } from '../../lib/sanitizeHtml'
 
 function tomorrowISO(): string {
   const d = new Date()
@@ -191,7 +192,7 @@ export default function TaskDetailPage() {
           {
             title: t('common.generalInfo', { defaultValue: 'General Info' }),
             fields: [
-              { label: t('fields.description', { defaultValue: 'Description' }), value: entity.description || '—' },
+              { label: t('fields.description', { defaultValue: 'Description' }), value: htmlToPlainText(entity.description) || '—' },
               { label: t('fields.priority', { defaultValue: 'Priority' }), value: entity.priority || '—' },
               { label: t('fields.dueDate', { defaultValue: 'Due Date' }), value: formatDate(entity.due_date) },
               { label: t('fields.status', { defaultValue: 'Status' }), value: entity.status || '—' },

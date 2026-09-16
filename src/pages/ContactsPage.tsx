@@ -82,7 +82,7 @@ const COUNTRY_CODES: { name: string; code: string }[] = [
   { name: 'Vietnam', code: '+84' },
 ].sort((a, b) => a.name.localeCompare(b.name));
 
-/* parse "+85291234567" → { code: '+852', local: '91234567' }（冇 match code → 用 caller 提供嘅 default） */
+/* parse "+85200000000" → { code: '+852', local: '91234567' }（冇 match code → 用 caller 提供嘅 default） */
 function splitPhone(raw: string | null, defCode: string): { code: string; local: string } {
   const v = (raw || '').replace(/\s+/g, '');
   if (!v) return { code: defCode, local: '' };

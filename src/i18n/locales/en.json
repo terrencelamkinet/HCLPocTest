@@ -138,7 +138,7 @@
     "proofLocalDesc": "Email and password flow for direct workspace access",
     "proofRecoveryTitle": "Full recovery",
     "proofRecoveryDesc": "Create account, reset password, and return without dead ends",
-    "badgeJwt": "JWT + refresh token ready",
+    "badgeJwt": "HttpOnly session cookie ready",
     "badgeMobile": "Mobile-first auth flow",
     "badgeWcag": "WCAG-friendly contrast",
     "errorLogin": "Login failed",
@@ -1781,6 +1781,26 @@
     "details": "Details…"
   },
   "nameCard": {
+    "fFax": "Fax",
+    "fAddress": "Office address",
+    "fMobile": "Mobile",
+    "fOfficePhone": "Office",
+    "sectionTitle": "Name Card",
+    "zoom": "Enlarge name card",
+    "currentCard": "Current",
+    "oldCard": "Previous",
+    "tlAdded": "Name card added",
+    "tlUpdated": "Name card updated",
+    "tlOldKept": "Previous name card kept — click to compare",
+    "noCardImage": "No name card image",
+    "replaceExisting": "Replace existing",
+    "replaceExistingSub": "Old values are stored in history; contact status updates",
+    "createNew": "Create new record",
+    "createNewSub": "Keeps the existing contact, both records stay",
+    "discardNew": "Delete new card",
+    "discardNewSub": "Deletes the new record, nothing is overwritten",
+    "confirmDiscard": "Delete this new card? The existing contact will not change.",
+
     "title": "Name Cards",
     "scannerTitle": "NameCard Scanner",
     "scannedCount": "{{count}} cards scanned",
@@ -1972,6 +1992,8 @@
     "contact": "Contacts"
   },
   "editor": {
+    "formatTools": "Format",
+    "insertParagraph": "Insert paragraph",
     "aiAssistant": "AI Assistant",
     "deleteBlock": "Delete block",
     "add": "Add",
@@ -2233,5 +2255,36 @@
     "emptyListTitle": "No notes yet",
     "more": "More",
     "moveTo": "Move to notebook"
+  },
+  "contact": {
+    "history": {
+      "title": "Field change history",
+      "sub": "One row per change — time, source, old value → new value",
+      "retracted": "Retracted",
+      "source": {
+        "card": "Business card",
+        "manual": "Manual",
+        "merge": "Merged",
+        "import": "Import",
+        "ai": "AI",
+        "legacy": "Legacy data"
+      },
+      "field": {
+        "name": "Name",
+        "email": "Email",
+        "phone": "Phone",
+        "job_title": "Job title",
+        "title": "Job title",
+        "company_id": "Company",
+        "company": "Company",
+        "notes": "Notes",
+        "tags": "Tags",
+        "address": "Address",
+        "status": "Status",
+        "source": "Source",
+        "owner_id": "Owner",
+        "next_follow_up": "Next follow-up"
+      }
+    }
   }
 }

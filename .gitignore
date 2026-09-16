@@ -43,6 +43,16 @@ backend/uploads/
 .env
 backend/.env
 
+# ── Secrets / keys：一律唔入 git（2026-09-15 AppScan 修正）────────────────
+# RS256 JWT keypair 留喺 backend/keys/（0600，路徑由 NEXUS_JWT_PRIVATE_KEY_PATH 控制）
+*.pem
+*.key
+backend/keys/
+.secrets/
+backend/.secrets/
+userlist.txt
+.git-credentials
+
 # App-level encryption key (NEXUS_SECRET_KEY in .env)
 backend/app/keys/secret.key
 backend/app/oauth_clients.json
@@ -50,8 +60,3 @@ backend/app/oauth_clients.json
 
 # opencv.js copied at build time (13MB — from node_modules)
 public/vendor/
-
-# Per-deployment secrets — never commit
-backend/keys/
-backend/.env
-*.pem

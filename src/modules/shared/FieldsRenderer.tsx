@@ -77,7 +77,7 @@ const COUNTRY_CODES: { name: string; code: string }[] = [
   { name: 'Vietnam', code: '+84' },
 ].sort((a, b) => a.name.localeCompare(b.name));
 
-/* parse "+85291234567" → { code: '+852', local: '91234567' }（冇 match code → defCode） */
+/* parse "+85200000000" → { code: '+852', local: '91234567' }（冇 match code → defCode） */
 function splitPhone(raw: string | null | undefined, defCode: string): { code: string; local: string } {
   const v = (raw || '').replace(/\s+/g, '');
   if (!v) return { code: defCode, local: '' };
@@ -88,7 +88,7 @@ function splitPhone(raw: string | null | undefined, defCode: string): { code: st
   return { code: defCode, local: v };
 }
 
-/* Phone input：國碼 select（國家名排列）+ 號碼 input — 儲存合併做 "+85291234567" */
+/* Phone input：國碼 select（國家名排列）+ 號碼 input — 儲存合併做 "+85200000000" */
 function PhoneField({ value, onChange, placeholder }: { value: any; onChange?: (v: string) => void; placeholder?: string }) {
   const [code, setCode] = useState('+852')
   const [local, setLocal] = useState('')

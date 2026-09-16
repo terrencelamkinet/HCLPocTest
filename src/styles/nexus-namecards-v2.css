@@ -6,9 +6,14 @@
 .nc-page { display: flex; flex-direction: column; height: 100%; background: var(--color-bg); }
 
 /* ═══ Header: title + quick upload dropzone + view toggle + search/filter ═══ */
-.nc-header { padding: var(--space-5) var(--space-6); border-bottom: 1px solid var(--color-border); }
-.nc-header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-4); }
-.nc-title { font-size: 20px; font-weight: 700; color: var(--color-text-primary); margin: 0; }
+/* 2026-09-15 Terrence「標題走位」實測修正（真 production 數字）：
+   舊版 .nc-header 自己再加 padding，但頁面已經喺 .nx2-content 內（24px 28px）
+   ⇒ 標題 x=296 / y=157，而標準頁（/contacts）係 x=274 / y=119 ✗；
+   而且 .nc-title 20px vs 設計 guide H1 = 28px（desktop）/ 22px（mobile）✗。
+   改法：header 唔再加水平 padding（對齊內容左邊界），標題字級跟 guide。 */
+.nc-header { padding: 0 0 var(--space-4); border-bottom: 1px solid var(--color-border); margin-bottom: var(--space-5); }
+.nc-header-top { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.nc-title { font-size: 28px; line-height: 36px; font-weight: 700; color: var(--color-text-primary); margin: 0; letter-spacing: -0.01em; }
 .nc-title-count { font-size: 13px; color: var(--color-text-secondary); font-weight: 500; margin-left: 8px; }
 .nc-header-actions { display: flex; gap: var(--space-2); align-items: center; }
 
@@ -25,6 +30,9 @@
   background: linear-gradient(135deg, var(--ai-glow-1), var(--ai-glow-2));
   display: flex; align-items: center; justify-content: center; color: #fff;
 }
+/* 2026-09-15：同上（全域 .svc-icon 蓋過 color:#fff）—— gradient 底白 icon
+   （實測 icon 仍然係 rgb(31,111,168) 藍 ✗，對比異常） */
+.nc-dropzone-icon .svc-icon { color: currentColor !important; }
 .nc-dropzone-title { font-size: 13.5px; font-weight: 600; color: var(--color-text-primary); }
 .nc-dropzone-sub { font-size: 12px; color: var(--color-text-secondary); margin-top: 3px; }
 .nc-dropzone-methods { display: flex; gap: var(--space-2); justify-content: center; margin-top: var(--space-3); }
@@ -85,7 +93,7 @@
 }
 .nc-search-toggle:hover { color: var(--color-primary); border-color: var(--color-primary); }
 .nc-search-input {
-  flex: 1; min-width: 200px; height: 38px; padding: 0 14px; border-radius: var(--radius-btn);
+  flex: 1; min-width: 200px; min-height: var(--btn-h-md); padding: 0 14px; border-radius: var(--radius-btn);
   border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text-primary); font-size: 13px;
 }
 .nc-tag-filter { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -113,7 +121,7 @@
 .nc-module-tab.active .svc-icon { color: currentColor !important; }
 
 /* ═══ Gallery grid ═══ */
-.nc-gallery-body { flex: 1; overflow-y: auto; padding: var(--space-6); }
+.nc-gallery-body { flex: 1; overflow-y: auto; padding: 0 0 var(--space-6); }
 .nc-gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--space-4); }
 .nc-gallery-grid.list-view { grid-template-columns: 1fr; gap: var(--space-2); }
 
@@ -166,18 +174,17 @@
 .nc-detail-modal { max-width: 920px; width: 92vw; }
 .nc-detail-modal-body { display: flex; gap: var(--space-5); padding: var(--space-5); max-height: 78vh; overflow-y: auto; }
 .nc-detail-images { width: 380px; flex-shrink: 0; }
-.nc-image-tabs { display: flex; gap: var(--space-2); margin-bottom: var(--space-3); }
-.nc-image-tab {
-  flex: 1; text-align: center; padding: 7px 0; font-size: 12px; font-weight: 600; border-radius: var(--radius-btn);
-  background: var(--color-surface); color: var(--color-text-secondary); cursor: pointer; border: 1px solid var(--color-border);
-}
-.nc-image-tab.active { background: var(--color-primary); color: var(--color-on-primary); border-color: var(--color-primary); }
+/* ═══ 2026-09-15 Terrence spec（Card Details 三點）═══
+   ① 冇 Original，只有 Cropped ⇒ 拆走 .nc-image-tabs / .nc-image-tab（死碼）
+   ② 「Name card image 沒有 full width」真兇 = frame 硬寫 aspect-ratio: 1.58/1
+      ＋ img object-fit: contain ⇒ 圖被 letterbox（左右留白）。改成跟原圖比例、闊度 100%。
+   ③ refresh（recrop）／download 用途不大 ⇒ 拆走 .nc-image-actions（死碼）*/
 .nc-image-frame {
-  border-radius: var(--radius-card); overflow: hidden; border: 1px solid var(--color-border);
-  background: var(--color-bg); aspect-ratio: 1.58/1; display: flex; align-items: center; justify-content: center;
+  width: 100%; border-radius: var(--radius-card); overflow: hidden; border: 1px solid var(--color-border);
+  background: var(--color-bg); display: flex; align-items: center; justify-content: center; min-height: 120px;
 }
-.nc-image-frame img { width: 100%; height: 100%; object-fit: contain; }
-.nc-image-actions { display: flex; gap: var(--space-2); margin-top: var(--space-3); }
+.nc-image-frame img { width: 100%; height: auto; display: block; object-fit: contain; }
+.nc-image-empty { color: var(--color-text-secondary); font-size: 12px; padding: var(--space-6) 0; }
 .nc-detail-fields { flex: 1; min-width: 0; }
 .nc-detail-field-row { display: flex; gap: var(--space-3); margin-bottom: var(--space-3); }
 .nc-detail-field-row .nx-field { flex: 1; }
@@ -209,8 +216,10 @@
 
 /* ═══ Mobile ═══ */
 @media (max-width: 767px) {
-  .nc-header { padding: var(--space-3) var(--space-4); }
-  .nc-gallery-body { padding: var(--space-4); padding-bottom: calc(var(--mnav-height, 64px) + env(safe-area-inset-bottom, 0px) + 16px); }
+  .nc-header { padding: 0 0 var(--space-3); margin-bottom: var(--space-4); }
+  .nc-title { font-size: 22px; line-height: 28px; }
+  /* 2026-09-15：水平 padding 交返頁面容器（同標題對齊），只保留底部 nav 淨空 */
+  .nc-gallery-body { padding: 0 0 calc(var(--mnav-height, 64px) + env(safe-area-inset-bottom, 0px) + 16px); }
   .nc-gallery-grid { grid-template-columns: repeat(2, 1fr); gap: var(--space-3); }
   .nc-detail-modal-body { flex-direction: column; max-height: 82vh; }
   .nc-detail-images { width: 100%; }
@@ -312,23 +321,28 @@
 }
 
 /* ═══ Pending area（WORKFLOW-2026-09 — duplicated records 等處理）═══ */
-.nc-pending-section { background: rgba(245,158,11,.06); border: 1px solid rgba(245,158,11,.25); border-radius: var(--radius-lg, 14px); padding: 14px; margin-bottom: 18px; }
+.nc-pending-section { background: rgba(245,158,11,.06); border: 1px solid rgba(245,158,11,.25); border-radius: var(--radius-card, 12px); padding: var(--space-4); margin-bottom: var(--space-5); }
 .nc-pending-head { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 13.5px; color: #b45309; margin-bottom: 4px; }
 .nc-pending-count { background: #f59e0b; color: #fff; font-size: 11px; border-radius: 999px; padding: 1px 8px; font-weight: 700; }
 .nc-pending-hint { font-weight: 400; font-size: 11.5px; color: var(--color-text-secondary, #6c6860); margin-left: auto; }
 .nc-pending-grid { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
-.nc-pending-card { display: flex; align-items: center; gap: 12px; background: var(--color-surface, #fff); border: 1px solid var(--color-border, #e5e2dc); border-radius: 12px; padding: 8px 10px; cursor: pointer; transition: border-color .15s; }
+.nc-pending-card { display: flex; align-items: flex-start; gap: var(--space-3); background: var(--color-surface, #fff); border: 1px solid var(--color-border, #e5e2dc); border-radius: 12px; padding: 10px 12px; min-height: 66px; cursor: pointer; transition: border-color var(--duration-fast) var(--ease-out); }
 .nc-pending-card:hover { border-color: #f59e0b; }
-.nc-pending-img { width: 54px; height: 36px; object-fit: cover; border-radius: 6px; flex-shrink: 0; background: #eee; }
-.nc-pending-noimg { width: 54px; height: 36px; border-radius: 6px; background: #f3f1ec; display: flex; align-items: center; justify-content: center; color: #b0aca2; flex-shrink: 0; }
-.nc-pending-info { flex: 1; min-width: 0; }
-.nc-pending-name { font-weight: 700; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.nc-pending-cand { font-size: 11.5px; color: #b45309; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nc-pending-img { width: 58px; height: 38px; object-fit: cover; border-radius: 6px; flex-shrink: 0; background: #eee; }
+.nc-pending-noimg { width: 58px; height: 38px; border-radius: 6px; background: #f3f1ec; display: flex; align-items: center; justify-content: center; color: #b0aca2; flex-shrink: 0; }
+.nc-pending-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.nc-pending-name { font-weight: 700; font-size: 13px; line-height: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nc-pending-cand { font-size: 11.5px; line-height: 16px; color: #b45309; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .nc-resolve-bar { margin-top: 12px; padding: 12px; border-radius: 10px; background: rgba(245,158,11,.08); border: 1px solid rgba(245,158,11,.3); }
 .nc-resolve-title { font-size: 12.5px; font-weight: 700; color: #b45309; margin-bottom: 10px; }
-.nc-resolve-actions { display: flex; gap: 8px; }
-.nc-resolve-actions .nx-btn { height: 36px; font-size: 12.5px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
-@media (max-width: 600px) { .nc-pending-hint { display: none; } .nc-resolve-actions { flex-direction: column; } }
+/* 2026-09-15 Terrence spec：重複決定 = 3 個 object（取代現有／開新記錄／刪除新卡），
+   每個都要寫明後果 ⇒ 直排、兩行（動作 + 後果）。 */
+.nc-resolve-actions { display: flex; flex-direction: column; gap: 8px; }
+.nc-resolve-actions .nx-btn { min-height: var(--btn-h-lg); height: auto; font-size: 13px; display: flex;
+  flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px; padding: 8px 12px; text-align: left; }
+.nc-resolve-actions .nx-btn > .nc-btn-label { font-weight: 700; }
+.nc-resolve-sub { display: block; font-size: 11px; font-weight: 500; opacity: .8; line-height: 1.3; }
+@media (max-width: 600px) { .nc-pending-hint { display: none; } }
 
 /* ═══ 新增名片 bottom sheet（2026-09-13 Terrence：四個上載方式收入 popup）═══ */
 /* 桌面拖放區：mobile 唔顯示（四個方式已入 popup）；桌面保留做 drag target */
@@ -365,6 +379,16 @@
 
 /* ═══ 重複卡並排欄位對照（2026-09-13，v4 MD suggestion T5）═══ */
 .nc-cmp { margin-top: 12px; border: 1px solid var(--color-border, #e5e2dc); border-radius: 10px; overflow: hidden; }
+/* 2026-09-15 Terrence：「New and existing compares 頂要有 name card image preview」*/
+.nc-cmp-previews { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 8px 10px;
+  background: rgba(27, 59, 75, .03); border-bottom: 1px solid var(--color-border, #e5e2dc); }
+.nc-cmp-preview { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.nc-cmp-preview-cap { font-size: 10.5px; font-weight: 700; color: var(--color-text-secondary, #6c6860);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nc-cmp-preview img { width: 100%; height: auto; display: block; border-radius: 8px;
+  border: 1px solid var(--color-border, #e5e2dc); background: #fff; }
+.nc-cmp-preview-empty { display: flex; align-items: center; justify-content: center; min-height: 72px; border-radius: 8px;
+  border: 1px dashed var(--color-border, #e5e2dc); font-size: 11px; color: var(--color-text-secondary, #6c6860); }
 .nc-cmp-row { display: grid; grid-template-columns: 62px 1fr 1fr; gap: 8px; align-items: start;
   padding: 7px 10px; font-size: 12px; border-top: 1px solid var(--color-border, #e5e2dc); }
 .nc-cmp-row:first-child { border-top: 0; }
@@ -375,7 +399,22 @@
 .nc-cmp-row.is-diff .nc-cmp-val { font-weight: 700; color: #b45309; }
 .nc-cmp-reason { padding: 8px 10px; font-size: 11.5px; line-height: 1.45; color: var(--color-text-secondary, #6c6860);
   background: rgba(27, 59, 75, .04); border-top: 1px solid var(--color-border, #e5e2dc); }
-@media (max-width: 480px) { .nc-cmp-row { grid-template-columns: 48px 1fr 1fr; gap: 6px; padding: 6px 8px; font-size: 11.5px; } }
+/* 2026-09-15 P1（Terrence + P仔 review）：列表一行顯示 Email／公司差異摘要，唔洗逐張開 */
+.nc-pending-diff { color: var(--color-text-secondary, #6c6860); }
+
+/* 2026-09-15 Mobile（Terrence）：393px 下 3 欄對照表每欄得 ~90px 太窄（HIG：mobile 最多 2 欄）→
+   label 獨佔一行，「新卡 / 現有」兩欄並排（iPhone 14 Pro 每欄 ~150px） */
+@media (max-width: 640px) {
+  .nc-cmp-row { grid-template-columns: 1fr 1fr; gap: 6px 10px; padding: 9px 12px; font-size: 13px; }
+  .nc-cmp-label { grid-column: 1 / -1; font-size: 12px; }
+  .nc-cmp-val { font-size: 13.5px; line-height: 1.4; }
+  /* 卡片高度唔一致（mobile 實測 [71.2, 86.7, 102.3]）真兇：cand 行數浮動 ⇒ 固定 2 行盒 */
+  .nc-pending-cand { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+    overflow: hidden; white-space: normal; line-height: 16px; min-height: 32px; font-size: 12px; }
+  .nc-pending-diff { display: block; margin-top: 0; }
+  /* iOS：input <16px 會令 focus 時版面被強制放大（設計 guide §2.1） */
+  .nc-search-input { font-size: 16px; }
+}
 
 /* ═══ 2026-09-13 Terrence：details page 手機版「走曬位」修（v4 README mobile 規格）═══
    README 要求：dialogs 變 92dvh bottom sheet、sticky action bar respect safe-area、
@@ -399,6 +438,10 @@
   }
   /* iOS：input < 16px 會令 focus 時版面被強制放大 */
   .nc-detail-modal input, .nc-detail-modal .input-field, .nc-detail-modal .nc-tag-add-input { font-size: 16px; }
+  /* 2026-09-15：設計 guide §10.1（mobile 表單 = 單欄）＋ 跟 NexusDetailPageV2 編輯面板
+     （桌面 2 欄 / 手機 1 欄）。舊版手機仍然 2 欄（實測每欄 174px，好迫）。 */
+  .nc-detail-modal .nc-detail-field-row { flex-direction: column; gap: var(--space-3); }
+  .nc-detail-modal .nc-detail-field-row .nx-field { width: 100%; }
   /* resolve 兩粒掣：舊版 min 高度靠 token（而 token 唔存在）⇒ 實測 20/18px，補一道保險 */
   .nc-resolve-actions .nx-btn { min-height: 44px; font-size: 13px; padding: 0 14px; }
   .nc-tag-editable { min-height: 44px; }

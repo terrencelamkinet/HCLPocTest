@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react'
-import { getStoredAuth } from '../../../../lib/api'
 
 /* ─────────────────────────────────────────────────────────────
    AICoreHooks — data hooks for tenant-level AI admin surfaces.
@@ -60,10 +59,8 @@ export function isWithinWorkHours(s: SecretarySettings): boolean {
 
 async function getJSON<T>(url: string): Promise<T | null> {
   try {
-    const auth = getStoredAuth()
-    const headers: Record<string, string> = { 'Accept': 'application/json' }
-    if (auth?.access_token) headers['Authorization'] = `Bearer ${auth.access_token}`
-    const res = await fetch(url, { headers })
+    // 2026-09-15 SAST：session 喺 httpOnly cookie，唔再手動加 Authorization
+    const res = await fetch(url, { headers: { 'Accept': 'application/json' }, credentials: 'include' })
     if (!res.ok) return null
     return (await res.json()) as T
   } catch {

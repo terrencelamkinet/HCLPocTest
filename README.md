@@ -2,6 +2,8 @@
 
 Multi-tenant CRM SaaS: React 19 + Vite + TypeScript frontend, FastAPI (async SQLAlchemy) backend, PostgreSQL.
 
+**Build: `v7.92`** — latest production-verified snapshot (2026-09-16).
+
 ## Layout
 
 | Path | What |

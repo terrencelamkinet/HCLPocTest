@@ -2,11 +2,11 @@ import { useState, useRef, useEffect, type FormEvent } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../lib/AuthContext';
-import { signup, forgotPassword, resetPassword, storeAuth, apiClient } from '../lib/api';
+import { signup, forgotPassword, resetPassword, storeSession, apiClient } from '../lib/api';
 
 export default function LoginPage() {
   const { t } = useTranslation();
-  const { login, verifyMfa, sendMfaCode, mfaEmail } = useAuth();
+  const { login, verifyMfa, sendMfaCode, mfaEmail, refreshMe } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -47,7 +47,9 @@ export default function LoginPage() {
         // (e.g. Asia/Hong_Kong). The backend only uses it to fill a blank.
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || '',
       });
-      storeAuth(res.access_token, res.email || '', res.refresh_token || '');
+      // 2026-09-15 SAST：cookie 已經由 server 種（HttpOnly），前端只記 hint
+      storeSession(res.email || '');
+      await refreshMe();
       setRedirecting(true);
       setTimeout(() => navigate('/dashboard', { replace: true }), 50);
     } catch (err: any) {
@@ -105,20 +107,32 @@ export default function LoginPage() {
   }, [resetToken]);
 
   useEffect(() => {
-    // Google OAuth return: /sign-in/#google_token=...&google_refresh=...&google_email=...
+    // Google OAuth return: /login/#google_ok=1
+    //   2026-09-15 SAST：token 已經唔再放喺 URL fragment（原本 #google_token=... 會
+    //   落入 history／分享／DevTools，再被前端寫入 localStorage）。而家 session 喺
+    //   httpOnly cookie（見 backend google_callback），URL 只帶一個 ok 標記。
     // Special access link: /login/#sa=<token>（GG family debug 通道，2026-08-31）
     const params = new URLSearchParams(location.hash.replace(/^#/, ''));
-    const token = params.get('google_token');
+    const googleOk = params.get('google_ok');
     const saToken = params.get('sa');
-    if (token) {
-      storeAuth(token, params.get('google_email') || '', params.get('google_refresh') || '');
-      setRedirecting(true);
-      setTimeout(() => navigate('/dashboard', { replace: true }), 50);
+    if (googleOk) {
+      (async () => {
+        try {
+          const me = await apiClient.get('/api/v1/auth/me');
+          if (me?.email) storeSession(me.email);
+        } catch {
+          /* 下面 refreshMe() 會反映真實狀態 */
+        }
+        await refreshMe();
+        setRedirecting(true);
+        setTimeout(() => navigate('/dashboard', { replace: true }), 50);
+      })();
     } else if (saToken) {
-      // Exchange special access token for a normal JWT (no MFA)
+      // Exchange special access token for a normal session (no MFA)
       apiClient.post('/api/v1/auth/special-access/verify', { token: saToken })
-        .then((res: any) => {
-          storeAuth(res.access_token, res.email || '', res.refresh_token || '');
+        .then(async (res: any) => {
+          storeSession(res?.email || '');
+          await refreshMe();
           setRedirecting(true);
       setTimeout(() => navigate('/dashboard', { replace: true }), 50);
         })
@@ -191,7 +205,9 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const res = await signup(email, password, displayName);
-      storeAuth(res.access_token, email, res.refresh_token);
+      // 2026-09-15 SAST：session 喺 httpOnly cookie（register 已經種）
+      storeSession(res.email || email);
+      await refreshMe();
       setRedirecting(true);
       setTimeout(() => navigate('/dashboard', { replace: true }), 50);
     } catch (err: any) {

@@ -4,6 +4,7 @@ import SvcIcon from '../components/SvcIcon';
 import { useTranslation } from 'react-i18next';
 import { apiClient } from '../lib/api'
 import NexusEditor from '../components/editor/NexusEditor';
+import { sanitizeHtml } from '../lib/sanitizeHtml';
 import { useModuleSettings } from '../lib/useModules';
 
 // ---------------------------------------------------------------------------
@@ -865,7 +866,7 @@ export default function ContactDetailPage() {
                       {n.content && (
                         <div
                           className="list-sub mt-1 nxe-rendered-content"
-                          dangerouslySetInnerHTML={{ __html: n.content }}
+                          dangerouslySetInnerHTML={{ __html: sanitizeHtml(n.content) }}
                         />
                       )}
                       <p className="list-sub mt-1 text-xs">{timeAgo(n.created_at)}</p>

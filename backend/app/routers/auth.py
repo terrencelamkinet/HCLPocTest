@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.db import get_db
@@ -7,9 +7,10 @@ from app.services.tenant_bootstrap import ensure_default_workspace
 from app.schemas import LoginRequest, RegisterRequest, MFAVerifyRequest, TokenResponse, RefreshRequest, ForgotPasswordRequest, ResetPasswordRequest, UserOut
 from app.services.auth_service import (
     hash_password, verify_password, create_access_token, create_refresh_token,
-    create_reset_token, decode_token, generate_otp, generate_session_token
+    create_reset_token, decode_token, generate_otp
 )
 from app.services.email_service import send_otp_email
+from app.services.session_cookies import set_session_cookies, clear_session_cookies, refresh_token_from_request
 from app.services.redis_service import store_otp, verify_otp, store_refresh_blacklist, check_device_trust, store_device_trust, get_redis
 from app.config import settings
 import uuid
@@ -19,8 +20,20 @@ from datetime import datetime, timezone, timedelta
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
+
+def _session_response(response: Response, body: TokenResponse) -> TokenResponse:
+    """回 token 嘅 endpoint 全部經呢度 —— 順手種 httpOnly session cookie。
+
+    2026-09-15 SAST（AppScan: Web Local Storage Insecure）：前端唔再將 token 存
+    localStorage；cookie 由瀏覽器自動帶（同源 + SameSite=Lax）。Body 照樣回 token
+    係為咗 scripts / e2e / CLI 向後兼容（佢哋用 Authorization: Bearer）。
+    """
+    set_session_cookies(response, body.access_token, body.refresh_token)
+    return body
+
+
 @router.post("/register", response_model=TokenResponse, status_code=201)
-async def register(req: RegisterRequest, request: Request, db: AsyncSession = Depends(get_db)):
+async def register(req: RegisterRequest, request: Request, response: Response, db: AsyncSession = Depends(get_db)):
     # Check if email already exists
     existing = await db.execute(select(User).where(User.email == req.email))
     if existing.scalar_one_or_none():
@@ -74,15 +87,15 @@ async def register(req: RegisterRequest, request: Request, db: AsyncSession = De
     from app.services.notification_service import ensure_default_preferences
     await ensure_default_preferences(db, tenant.id, user.id)
 
-    return TokenResponse(
+    return _session_response(response, TokenResponse(
         access_token=access_token,
         mfa_required=False,
         email=user.email,
         refresh_token=refresh_token_str,
-    )
+    ))
 
 @router.post("/login", response_model=TokenResponse)
-async def login(req: LoginRequest, request: Request, db: AsyncSession = Depends(get_db)):
+async def login(req: LoginRequest, request: Request, response: Response, db: AsyncSession = Depends(get_db)):
     # Find user
     result = await db.execute(select(User).where(User.email == req.email))
     user = result.scalar_one_or_none()
@@ -108,10 +121,10 @@ async def login(req: LoginRequest, request: Request, db: AsyncSession = Depends(
         )
         db.add(db_session)
         await db.flush()
-        return TokenResponse(
+        return _session_response(response, TokenResponse(
             access_token=access_token, mfa_required=False,
             email=user.email, refresh_token=refresh_token_str,
-        )
+        ))
 
     # Check device trust — skip MFA if device token is valid
     if req.device_token:
@@ -134,25 +147,25 @@ async def login(req: LoginRequest, request: Request, db: AsyncSession = Depends(
             )
             db.add(db_session)
             await db.flush()
-            return TokenResponse(
+            return _session_response(response, TokenResponse(
                 access_token=access_token, mfa_required=False,
                 email=user.email, device_token=req.device_token,
                 refresh_token=refresh_token_str,
-            )
+            ))
 
     # Generate and send OTP
     otp = generate_otp()
     await store_otp(req.email, otp)
     await send_otp_email(req.email, otp)
 
-    return TokenResponse(
+    return _session_response(response, TokenResponse(
         access_token="",
         mfa_required=True,
         email=req.email
-    )
+    ))
 
 @router.post("/google", response_model=TokenResponse)
-async def google_login(request: Request, db: AsyncSession = Depends(get_db)):
+async def google_login(request: Request, response: Response, db: AsyncSession = Depends(get_db)):
     """Sign in with Google — GIS ID-token flow (2026-09-11).
 
     The browser hands us the ID token Google issued. We verify it against Google's
@@ -235,34 +248,11 @@ async def google_login(request: Request, db: AsyncSession = Depends(get_db)):
     )
     db.add(db_session)
     await db.flush()
-    return TokenResponse(
+    return _session_response(response, TokenResponse(
         access_token=access_token, mfa_required=False,
         email=user.email, refresh_token=refresh_token_str,
-    )
+    ))
 
-
-@router.post("/dev-login", response_model=TokenResponse, include_in_schema=False)
-async def dev_login(req: LoginRequest, request: Request, db: AsyncSession = Depends(get_db)):
-    if not settings.debug:
-        raise HTTPException(status_code=404, detail="Not found")
-    result = await db.execute(select(User).where(User.email == req.email))
-    user = result.scalar_one_or_none()
-    if not user or not verify_password(req.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Invalid email or password")
-    tm = await db.execute(select(TenantMember).where(TenantMember.user_id == user.id).limit(1))
-    tm_row = tm.scalar_one_or_none()
-    tenant_id = str(tm_row.tenant_id) if tm_row else ""
-    access_token = create_access_token(str(user.id), user.email, user.role, tenant_id)
-    refresh_token_str, expires_at = create_refresh_token(str(user.id))
-    db_session = Session(
-        user_id=user.id, refresh_token=refresh_token_str,
-        user_agent=request.headers.get("user-agent", ""),
-        ip_address=request.client.host if request.client else "unknown",
-        expires_at=expires_at,
-    )
-    db.add(db_session)
-    await db.flush()
-    return TokenResponse(access_token=access_token, mfa_required=False, email=user.email, refresh_token=refresh_token_str)
 
 @router.post("/send-mfa", response_model=dict)
 async def send_mfa(req: dict, db: AsyncSession = Depends(get_db)):
@@ -280,7 +270,7 @@ async def send_mfa(req: dict, db: AsyncSession = Depends(get_db)):
     return {"message": "MFA code sent", "email": email}
 
 @router.post("/verify-mfa", response_model=TokenResponse)
-async def verify_mfa(req: MFAVerifyRequest, request: Request, db: AsyncSession = Depends(get_db)):
+async def verify_mfa(req: MFAVerifyRequest, request: Request, response: Response, db: AsyncSession = Depends(get_db)):
     # Verify OTP
     valid = await verify_otp(req.email, req.otp_code)
     if not valid:
@@ -324,17 +314,23 @@ async def verify_mfa(req: MFAVerifyRequest, request: Request, db: AsyncSession =
         device_token = generate_device_token()
         await store_device_trust(str(user.id), device_token, ttl_days=30)
 
-    return TokenResponse(
+    return _session_response(response, TokenResponse(
         access_token=access_token,
         mfa_required=False,
         email=user.email,
         device_token=device_token,
         refresh_token=refresh_token_str,
-    )
+    ))
 
 @router.post("/refresh", response_model=TokenResponse)
-async def refresh(req: RefreshRequest, db: AsyncSession = Depends(get_db)):
-    payload = decode_token(req.refresh_token)
+async def refresh(req: RefreshRequest, request: Request, response: Response, db: AsyncSession = Depends(get_db)):
+    # 2026-09-15 SAST：前端唔再喺 body 傳 token（喺 httpOnly cookie），但照樣接受
+    # body 以兼容舊 client / scripts / e2e。
+    token_in = refresh_token_from_request(request, req.refresh_token)
+    if not token_in:
+        raise HTTPException(status_code=401, detail="Missing refresh token")
+
+    payload = decode_token(token_in)
     if not payload or payload.get("type") != "refresh":
         raise HTTPException(status_code=401, detail="Invalid refresh token")
 
@@ -347,7 +343,7 @@ async def refresh(req: RefreshRequest, db: AsyncSession = Depends(get_db)):
     # Find session
     result = await db.execute(
         select(Session).where(
-            Session.refresh_token == req.refresh_token,
+            Session.refresh_token == token_in,
             Session.revoked == False
         )
     )
@@ -383,22 +379,36 @@ async def refresh(req: RefreshRequest, db: AsyncSession = Depends(get_db)):
     db.add(new_session)
     await db.flush()
 
-    return TokenResponse(access_token=new_access, mfa_required=False, email=user.email)
+    # 2026-09-15 bug fix：之前唔回新 refresh token，但舊嗰個已經 revoke + blacklist
+    # → 一世只 refresh 到一次，第二次就 401「Token revoked」。而家回新 token，
+    # cookie 同 body 都會換新，refresh 可以無限次（同 refresh_token_expire_days 一致）。
+    return _session_response(response, TokenResponse(
+        access_token=new_access,
+        mfa_required=False,
+        email=user.email,
+        refresh_token=new_refresh,
+    ))
 
 @router.post("/logout")
-async def logout(req: RefreshRequest, db: AsyncSession = Depends(get_db)):
-    payload = decode_token(req.refresh_token)
+async def logout(req: RefreshRequest, request: Request, response: Response, db: AsyncSession = Depends(get_db)):
+    # token 可以嚟自 body（舊 client）或 cookie（新前端唔傳 body）
+    token_in = refresh_token_from_request(request, req.refresh_token)
+    payload = decode_token(token_in) if token_in else None
     if payload and payload.get("jti"):
         expires = datetime.fromtimestamp(payload.get("exp", 0), tz=timezone.utc)
         await store_refresh_blacklist(payload["jti"], expires)
 
-    result = await db.execute(
-        select(Session).where(Session.refresh_token == req.refresh_token)
-    )
-    session = result.scalar_one_or_none()
-    if session:
-        session.revoked = True
-        await db.flush()
+    if token_in:
+        result = await db.execute(
+            select(Session).where(Session.refresh_token == token_in)
+        )
+        session = result.scalar_one_or_none()
+        if session:
+            session.revoked = True
+            await db.flush()
+
+    # 無論上面成功與否，cookie 一定要清（否則前端以為登出咗但 session 仲有效）
+    clear_session_cookies(response)
 
     return {"message": "Logged out"}
 
@@ -756,12 +766,12 @@ async def google_callback(
     ))
     await db.commit()
 
-    # Tokens in fragment — never sent to server, never in logs
-    redirect = (
-        f"{origin}/login/#google_token={access_token}"
-        f"&google_refresh={refresh_token_str}&google_email={email}"
-    )
-    return RedirectResponse(redirect)
+    # 2026-09-15 SAST：token 唔再放入 URL fragment。原本 `#google_token=...` 會被前端
+    # 寫入 localStorage → URL（history／分享／DevTools／書籤）同 JS 兩重都拎得到。
+    # 而家改為種 httpOnly cookie，redirect 只帶一個 `google_ok` 標記。
+    resp = RedirectResponse(f"{origin}/login/#google_ok=1")
+    set_session_cookies(resp, access_token, refresh_token_str)
+    return resp
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -861,7 +871,7 @@ async def create_special_access(
     except Exception:
         pass
 
-    base = settings.public_base_url or f"https://www.penguincrm.io"
+    base = settings.public_base_url or "https://www.penguincrm.io"
     link = f"{base.rstrip('/')}/login/#sa={token}"
     return {
         "link": link,
@@ -873,7 +883,7 @@ async def create_special_access(
 
 
 @router.post("/special-access/verify", response_model=TokenResponse)
-async def verify_special_access(req: dict, request: Request, db: AsyncSession = Depends(get_db)):
+async def verify_special_access(req: dict, request: Request, response: Response, db: AsyncSession = Depends(get_db)):
     """Exchange a special access token for a normal JWT (no MFA).
 
     Body: {token: str} — from the #sa= fragment in the login URL.
@@ -908,13 +918,13 @@ async def verify_special_access(req: dict, request: Request, db: AsyncSession = 
         expires_at=expires_at,
     ))
     await db.commit()
-    return TokenResponse(
+    return _session_response(response, TokenResponse(
         access_token=access_token,
         refresh_token=refresh_token_str,
         token_type="bearer",
         email=user.email,
         mfa_required=False,
-    )
+    ))
 
 
 @router.get("/special-access", response_model=dict)

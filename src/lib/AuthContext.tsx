@@ -1,8 +1,8 @@
 /**
  * Penguin CRM Auth Context
- * 
+ *
  * Provides login, logout, and user state across the app.
- * Token storage + refresh handled by api.ts.
+ * Session 由 httpOnly cookie 帶（2026-09-15 SAST）；呢度只係存非敏感 session hint。
  */
 
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
@@ -10,10 +10,10 @@ import {
   login as apiLogin,
   sendMfa,
   verifyMfa as apiVerifyMfa,
-  storeAuth,
+  storeSession,
   clearAuth,
-  getStoredAuth,
-  isAuthenticated,
+  getSession,
+  logoutSession,
 } from './api';
 
 // ---------------------------------------------------------------------------
@@ -52,15 +52,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [mfaEmail, setMfaEmail] = useState('');
 
-  // Fetch real user profile (display_name) from backend — AuthContext only
-  // stores email on login; /auth/me returns display_name + verified flags.
+  // Fetch real user profile from backend. 授權靠 httpOnly cookie → 唔需要（亦冇）
+  // Authorization header；cookie 無效就係 401 → 回 null。
   const fetchMe = useCallback(async (): Promise<AuthUser | null> => {
     try {
-      const auth = getStoredAuth();
-      if (!auth?.access_token) return null;
-      const res = await fetch('/api/v1/auth/me', {
-        headers: { Authorization: `Bearer ${auth.access_token}` },
-      });
+      const res = await fetch('/api/v1/auth/me', { credentials: 'include' });
       if (!res.ok) return null;
       const me = await res.json();
       return {
@@ -86,15 +82,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (me) setUser(me);
   }, [fetchMe]);
 
-  // Restore session from localStorage on mount — then refresh real identity
+  // Mount：用 session hint 即刻 render，再問 /auth/me 確認 cookie 仲有效。
+  // ⚠️ 冇 hint 就唔打 /auth/me（唔好每次開 sign-in 頁都打一次）；hint 有但
+  //    /auth/me 401 → cookie 已經死 → 清 hint（AuthGuard 會轉去 sign-in）。
   useEffect(() => {
-    const stored = getStoredAuth();
-    if (stored && isAuthenticated()) {
-      setUser({ email: stored.email });
-      fetchMe().then((me) => applyMe(me, stored.email));
+    const hint = getSession();
+    if (hint) {
+      setUser({ email: hint.email });
+      fetchMe().then((me) => {
+        if (me) setUser(me);
+        else {
+          clearAuth();
+          setUser(null);
+        }
+      });
     }
     setLoading(false);
-  }, [fetchMe, applyMe]);
+  }, [fetchMe]);
 
   const login = useCallback(async (email: string, password: string): Promise<'mfa' | 'success'> => {
     const res = await apiLogin(email, password);
@@ -105,8 +109,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return 'mfa';
     }
 
-    // Trust device — store both access + refresh tokens
-    storeAuth(res.access_token, email, res.refresh_token);
+    // cookie 已經由 server 種（HttpOnly，JS 讀唔到）— 前端只記非敏感 hint
+    storeSession(email);
     setUser({ email });
     fetchMe().then((me) => applyMe(me, email));
     setMfaEmail('');
@@ -122,14 +126,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const verifyMfa = useCallback(async (otp: string) => {
     if (!mfaEmail) throw new Error('No MFA session');
     const res = await apiVerifyMfa(mfaEmail, otp);
-    storeAuth(res.access_token, mfaEmail, res.refresh_token);
+    void res; // body 仍然有 token（向後兼容 CLI／e2e），前端唔再存
+    storeSession(mfaEmail);
     setUser({ email: mfaEmail });
     fetchMe().then((me) => applyMe(me, mfaEmail));
     setMfaEmail('');
   }, [mfaEmail, fetchMe, applyMe]);
 
   const logout = useCallback(() => {
-    clearAuth();
+    // server 清 cookie + revoke session（fire-and-forget，UI 唔等）
+    void logoutSession();
     setUser(null);
     setMfaEmail('');
   }, []);

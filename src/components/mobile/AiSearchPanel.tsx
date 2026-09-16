@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n/config';
-import { apiClient, getStoredAuth } from '../../lib/api';
+import { apiClient } from '../../lib/api';
 import FollowUpChips from '../ai/chat/core/FollowUpChips';
 import MarkdownMessage from '../MarkdownRenderer';
 import ActionPreviewModal from '../ActionPreviewModal';
@@ -273,7 +273,9 @@ export default function AiSearchPanel({ open, onClose, onRequestOpen }: Props) {
     try {
       const resp = await fetch('/api/v1/ai/chat/stream', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getStoredAuth()?.access_token || ''}` },
+        // 2026-09-15 SAST：session 喺 httpOnly cookie（SameSite=Lax + 同源）
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ messages: [{ role: 'user', content: text }], session_id: sessionId || null, agent_id: null }),
         signal: controller.signal,
       });

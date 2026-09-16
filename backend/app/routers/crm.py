@@ -34,6 +34,7 @@ from app.models.crm import (
     ActivityLog,
     Company,
     Contact,
+    ContactChange,
     ContactProject,
     NameCard,
     NameCardTag,
@@ -145,6 +146,61 @@ async def _log_activity(
         changes=changes,
     )
     db.add(entry)
+
+
+# ---------------------------------------------------------------------------
+# Contact change history（v1，2026-09-15 Terrence + P仔 review）
+# 欄位級 append-only 歷史 —— 答「幾時轉、轉咗咩」。
+# P仔：唔可以延伸 activity_log（event log 只存新值快照、冇 old value，
+# 每次查詢都要 app 層 diff JSON）；兩者分開：event log vs audit trail。
+# ---------------------------------------------------------------------------
+
+CHANGE_SOURCES = {"card", "manual", "import", "merge", "ai", "legacy"}
+
+
+async def _log_contact_changes(
+    db: AsyncSession,
+    *,
+    tenant_id: UUID,
+    contact_id: UUID,
+    changes: dict,
+    source: str,
+    source_id: UUID | None = None,
+    actor_id: UUID | None = None,
+    confidence: str | None = None,
+) -> int:
+    """寫入欄位級歷史（append-only，永不改舊行）。
+
+    `changes` = {field: (old, new)}；old == new（no-op）會 skip。
+    source ∈ card | manual | import | merge | ai | legacy（P仔：來源同信心必須入 schema）。
+    """
+    if source not in CHANGE_SOURCES:
+        raise ValueError(f"unknown contact_change source: {source}")
+    now = datetime.now(timezone.utc)
+    written = 0
+    for field, pair in changes.items():
+        old, new = pair if isinstance(pair, (tuple, list)) else (None, pair)
+        o = None if old is None or old == "" else str(old)
+        v = None if new is None or new == "" else str(new)
+        if o == v:
+            continue
+        db.add(
+            ContactChange(
+                tenant_id=tenant_id,
+                contact_id=contact_id,
+                field=field,
+                old_value=o,
+                new_value=v,
+                source=source,
+                source_id=source_id,
+                actor_id=actor_id if actor_id else None,
+                confidence=confidence,
+                verification_status="verified" if source == "manual" else "unverified",
+                changed_at=now,
+            )
+        )
+        written += 1
+    return written
 
 
 # ---------------------------------------------------------------------------
@@ -287,7 +343,11 @@ async def _apply_task_cf(
                 SELECT nexus_crm.upsert_custom_field_value(
                     :p_tenant_id, :p_definition_id, :p_record_id,
                     :p_value_text, :p_value_number, :p_value_boolean,
-                    :p_value_date::timestamptz, :p_value_json::jsonb
+                    -- KB-047：唔可以喺 bind param 後面直接寫 `::type`
+                    -- （asyncpg 會將 `:p_value_date::timestamptz` 當成一個 param 名
+                    --  → PostgresSyntaxError: syntax error at or near ":"）→ 一律用 CAST()。
+                    -- 另外 PG 函數嘅 p_value_date 係 date（唔係 timestamptz）。
+                    CAST(:p_value_date AS date), CAST(:p_value_json AS jsonb)
                 )
             """),
             params,
@@ -537,6 +597,118 @@ async def duplicate_check_companies(
             matches.append({"id": str(rid), "name": rname, "similarity": round(sim, 3)})
     matches.sort(key=lambda m: m["similarity"], reverse=True)
     return {"matches": matches[:limit]}
+
+
+def _dup_brief(c: Contact) -> dict:
+    """疑似重複群組嘅成員摘要（對照表用：名／email／電話／職位／公司／時間）。"""
+    return {
+        "id": str(c.id),
+        "name": c.name,
+        "email": c.email,
+        "phone": c.phone,
+        "job_title": c.job_title,
+        "company_id": str(c.company_id) if c.company_id else None,
+        "created_at": c.created_at.isoformat() if c.created_at else None,
+        "updated_at": c.updated_at.isoformat() if c.updated_at else None,
+    }
+
+
+@router.get("/contacts/duplicates")
+async def list_duplicate_groups(
+    request: Request,
+    include_weak: bool = False,
+    db: AsyncSession = Depends(get_tenant_session),
+):
+    """全 workspace 疑似重複聯絡人分組（2026-09-15）。
+
+    強訊號（永遠回）：email 完全相同（非空）。
+    弱訊號（`include_weak=true`）：同名 + 同公司／同名 + 同電話。
+    **唔會自動合併** —— 只分組，畀人／管家逐組用名片對照表決定（換公司要 separate，
+    唔可以當重複砍走）。呢個 endpoint 係「同一對照表批次處理」嘅後端入口。
+    """
+    tenant_id = _get_tenant_id(request)
+    rows = (
+        await db.execute(
+            select(Contact)
+            .where(Contact.tenant_id == tenant_id)
+            .order_by(Contact.created_at.asc())
+            .limit(5000)
+        )
+    ).scalars().all()
+
+    def n_email(v):
+        return (v or "").strip().lower() or None
+
+    def n_name(v):
+        return " ".join((v or "").lower().split()) or None
+
+    def n_phone(v):
+        return "".join(ch for ch in (v or "") if ch.isdigit()) or None
+
+    groups: list = []
+    seen_idsets: set = set()
+
+    by_email: dict = {}
+    for c in rows:
+        e = n_email(c.email)
+        if e:
+            by_email.setdefault(e, []).append(c)
+    for e, members in by_email.items():
+        if len(members) < 2:
+            continue
+        seen_idsets.add(frozenset(str(m.id) for m in members))
+        groups.append(
+            {
+                "reason": "email_exact",
+                "confidence": "high",
+                "key": e,
+                "contacts": [_dup_brief(m) for m in members],
+            }
+        )
+
+    if include_weak:
+        by_name: dict = {}
+        for c in rows:
+            n = n_name(c.name)
+            if n:
+                by_name.setdefault(n, []).append(c)
+        for n, members in by_name.items():
+            if len(members) < 2:
+                continue
+            by_company: dict = {}
+            by_phone: dict = {}
+            for m in members:
+                if m.company_id:
+                    by_company.setdefault(str(m.company_id), []).append(m)
+                p = n_phone(m.phone)
+                if p:
+                    by_phone.setdefault(p, []).append(m)
+            for reason, bucket in (
+                ("name_and_company", by_company),
+                ("name_and_phone", by_phone),
+            ):
+                for k, grp in bucket.items():
+                    if len(grp) < 2:
+                        continue
+                    ids = frozenset(str(x.id) for x in grp)
+                    if ids in seen_idsets:
+                        continue
+                    seen_idsets.add(ids)
+                    groups.append(
+                        {
+                            "reason": reason,
+                            "confidence": "medium",
+                            "key": k,
+                            "contacts": [_dup_brief(x) for x in grp],
+                        }
+                    )
+
+    return {
+        "groups": groups,
+        "count": len(groups),
+        "duplicate_contacts": sum(len(g["contacts"]) for g in groups),
+        "contacts_scanned": len(rows),
+    }
 
 
 @router.get("/contacts/duplicate-check")
@@ -898,7 +1070,9 @@ async def update_contact(
         raise HTTPException(status_code=404, detail="Contact not found")
 
     changes = {}
+    field_changes: dict = {}
     for field, value in body.model_dump(exclude_unset=True).items():
+        field_changes[field] = (getattr(contact, field, None), value)
         setattr(contact, field, value)
         changes[field] = str(value)
 
@@ -915,6 +1089,16 @@ async def update_contact(
         changes=changes,
     )
 
+    # 2026-09-15 v1：欄位級歷史（old → new 逐欄記錄；no-op 自動 skip）
+    await _log_contact_changes(
+        db,
+        tenant_id=tenant_id,
+        contact_id=contact.id,
+        changes=field_changes,
+        source="manual",
+        actor_id=user_id,
+    )
+
     await db.flush()
     # Reload with company eager-loaded (same pattern as GET) — the lazy
     # `contact.company` relationship would otherwise 500 during response
@@ -927,6 +1111,51 @@ async def update_contact(
     d = {col.name: getattr(contact, col.name) for col in contact.__table__.columns}
     d['company'] = {"id": str(contact.company.id), "name": contact.company.name} if contact.company else None
     return d
+
+
+@router.get("/contacts/{contact_id}/history")
+async def contact_history(
+    request: Request,
+    contact_id: UUID,
+    field: str | None = None,
+    include_retracted: bool = False,
+    limit: int = 200,
+    db: AsyncSession = Depends(get_tenant_session),
+):
+    """欄位級歷史時間軸（v1，2026-09-15）— 答「幾時轉、轉咗咩」。
+
+    - 預設只回未 retract 嘅行（P仔：正常 view 唔應該見到已知錯誤歷史）
+    - 回 source / confidence / verification_status → UI 可標示「由卡 OCR」「由 AI」
+    - 新到舊；limit ≤ 500。v2 會由呢度推導 employment（任職期）
+    """
+    tenant_id = _get_tenant_id(request)
+    stmt = select(ContactChange).where(
+        ContactChange.tenant_id == tenant_id,
+        ContactChange.contact_id == contact_id,
+    )
+    if field:
+        stmt = stmt.where(ContactChange.field == field)
+    if not include_retracted:
+        stmt = stmt.where(ContactChange.verification_status != "retracted")
+    rows = (
+        await db.execute(
+            stmt.order_by(ContactChange.changed_at.desc()).limit(max(1, min(limit, 500)))
+        )
+    ).scalars().all()
+    return [
+        {
+            "id": str(r.id),
+            "field": r.field,
+            "old_value": r.old_value,
+            "new_value": r.new_value,
+            "changed_at": r.changed_at.isoformat() if r.changed_at else None,
+            "source": r.source,
+            "source_id": str(r.source_id) if r.source_id else None,
+            "confidence": r.confidence,
+            "verification_status": r.verification_status,
+        }
+        for r in rows
+    ]
 
 
 @router.delete("/contacts/{contact_id}", status_code=204)
@@ -1651,6 +1880,8 @@ async def create_task(
         tenant_id=tenant_id,
         workspace_id=workspace_id,
         created_by=user_id,
+        # custom_fields 唔入 tasks table：由 _apply_task_cf 寫入
+        # nexus_crm.custom_field_values（定義驅動，見 _load_custom_fields）。
         **body.model_dump(exclude={'custom_fields'}),
     )
     db.add(task)
@@ -1860,6 +2091,7 @@ async def list_name_cards(
     limit: int = 50,
     offset: int = 0,
     search: str | None = None,
+    contact_id: UUID | None = None,
     db: AsyncSession = Depends(get_tenant_session),
 ):
     tenant_id = _get_tenant_id(request)
@@ -1867,6 +2099,10 @@ async def list_name_cards(
 
     if search:
         base = base.where(NameCard.raw_ocr_text.ilike(f"%{search}%"))
+
+    # 2026-09-15 Terrence：contact 頁要一條「呢個聯絡人嘅名片紀錄」（新卡 + 舊記錄可 preview）
+    if contact_id:
+        base = base.where(NameCard.contact_id == contact_id)
 
     count_q = select(func.count()).select_from(base.subquery())
     total = (await db.execute(count_q)).scalar() or 0
@@ -2186,12 +2422,24 @@ async def _process_name_card_bg(
                         .where(Contact.tenant_id == tenant_id)
                     )
                 ).scalars().all()
+                # 2026-09-15 P0（Terrence + P仔 review）：entity_resolution_agent 讀
+                # job_title/company_name，但 review_candidates 讀 company/title → key 唔對
+                # 令對照表「公司／職位」永遠空白（production 實測 11/11 空）。
+                # 呢個 dict 同時服務兩邊，所以兩套 key 都要有；
+                # created_at/updated_at 供對照表時間軸（P0.5）。
                 existing_contacts = [{
                     "id": str(c.id), "name": c.name, "chinese_name": c.chinese_name,
                     "job_title": c.job_title,
                     "company_id": str(c.company_id) if c.company_id else "",
                     "company_name": c.company.name if c.company else "",
                     "email": c.email, "phone": c.phone, "office_phone": c.office_phone,
+                    "title": c.job_title or "",
+                    "company": c.company.name if c.company else "",
+                    "created_at": c.created_at.isoformat() if c.created_at else "",
+                    "updated_at": c.updated_at.isoformat() if c.updated_at else "",
+                    # 2026-09-15 Terrence：「compares 頂要有 name card image preview」
+                    #   → 現有聯絡人嘅名片圖（namecard_path）要帶埋去 candidate
+                    "image_url": c.namecard_path or "",
                 } for c in cand_rows]
 
                 s3 = namecard_agents.entity_resolution_agent(parsed, existing_contacts, company_id, usage_out=usage_reports)
@@ -2213,6 +2461,9 @@ async def _process_name_card_bg(
                         "name": candidate.get("name") or "", "email": candidate.get("email") or "",
                         "phone": candidate.get("phone") or "", "company": candidate.get("company") or "",
                         "title": candidate.get("title") or "",
+                        "created_at": candidate.get("created_at") or "",
+                        "updated_at": candidate.get("updated_at") or "",
+                        "image_url": candidate.get("image_url") or "",
                     }]
                 elif s3.decision == "review" and candidate:
                     # MEDIUM tier (0.7-0.95): user decides override vs keep-both
@@ -2225,6 +2476,9 @@ async def _process_name_card_bg(
                         "name": candidate.get("name") or "", "email": candidate.get("email") or "",
                         "phone": candidate.get("phone") or "", "company": candidate.get("company") or "",
                         "title": candidate.get("title") or "",
+                        "created_at": candidate.get("created_at") or "",
+                        "updated_at": candidate.get("updated_at") or "",
+                        "image_url": candidate.get("image_url") or "",
                     }]
                 elif person_name:
                     # LOW tier / no candidates — create (flag unresolved when weak)
@@ -2263,6 +2517,9 @@ async def _process_name_card_bg(
                             "name": candidate.get("name") or "", "email": candidate.get("email") or "",
                             "phone": candidate.get("phone") or "", "company": candidate.get("company") or "",
                             "title": candidate.get("title") or "",
+                            "created_at": candidate.get("created_at") or "",
+                            "updated_at": candidate.get("updated_at") or "",
+                            "image_url": candidate.get("image_url") or "",
                         }]
                     await _log_activity(
                         db, tenant_id=tenant_id, actor_id=user_id,
@@ -2445,10 +2702,91 @@ async def get_name_card(
 # separate / keep_both → 開新 contact，舊卡保留
 _RESOLVE_ACTION_ALIASES = {
     "merge": "merge",
-    "overwrite": "merge",
+    # 2026-09-15 Terrence spec：overwrite 舊版錯 map 去 merge（只補空白、永不覆蓋）✗
+    #   → 真 overwrite 行為 = replace（新卡值覆蓋，舊值入 history）
+    "overwrite": "replace",
+    "replace": "replace",
     "separate": "separate",
     "keep_both": "separate",
 }
+
+
+def _pick_company_match(name: str, existing: list[tuple[Any, str]]) -> Any | None:
+    """公司名比對（跟 review_candidates 同一語意）：① 逐字（case-insensitive）② normalized 互相包含。"""
+    raw = (name or "").strip().lower()
+    if not raw:
+        return None
+    for cid, cname in existing:
+        if (cname or "").strip().lower() == raw:
+            return cid
+    norm = namecard_llm.normalize_company_name(name)
+    if norm:
+        for cid, cname in existing:
+            cn = namecard_llm.normalize_company_name(cname or "")
+            if cn and (norm in cn or cn in norm):
+                return cid
+    return None
+
+
+async def _match_or_create_company(db: Any, tenant_id: Any, workspace_id: Any, name: str) -> Any | None:
+    """公司名 → Company row（2026-09-15 Terrence：「公司當然要自動連」）。
+
+    先配對現有（逐字 → normalized fuzzy），冇就建立一個（唔呼叫 web research／唔加 AI 成本）。
+    """
+    name = (name or "").strip()
+    if len(name) < 2:
+        return None
+    rows = (await db.execute(
+        select(Company.id, Company.name).where(Company.tenant_id == tenant_id)
+    )).all()
+    cid = _pick_company_match(name, [(r[0], r[1]) for r in rows])
+    if cid is not None:
+        return (await db.execute(select(Company).where(Company.id == cid))).scalar_one_or_none()
+    comp = Company(tenant_id=tenant_id, workspace_id=workspace_id, name=name)
+    db.add(comp)
+    await db.flush()
+    return comp
+
+
+def _apply_card_replacement(contact: Any, card: Any, parsed: dict[str, Any], person_name: str | None, company_id: Any = None) -> dict[str, Any]:
+    """2026-09-15 Terrence spec ①「取代現有」嘅核心規則（純同步 ⇒ 可單獨測試）。
+
+    · 新卡有值嘅欄位 → 覆蓋 contact；舊值由 caller 寫入 contact_changes（= history）
+    · 卡冇值／空白 → **唔清空**現有資料（OCR 漏讀唔可以洗走人手輸入）
+    · contact status 同步更新：dedup_status=resolved、last_verified_at=now
+    · 卡狀態：matched + dedup_status=replaced，清空 review_candidates
+    回傳 diff {field: (old, new)}（只含真正改動咗嘅欄位）。
+    """
+    replacement = {
+        "name": person_name or None,
+        "email": (parsed.get("email") or "").strip().lower() or None,
+        "phone": (parsed.get("phone") or "").strip() or None,
+        "job_title": (parsed.get("title") or "").strip() or None,
+    }
+    diff: dict[str, Any] = {}
+    for field_name, new_val in replacement.items():
+        if not new_val:
+            continue
+        old_val = getattr(contact, field_name, None)
+        if (old_val or "") == new_val:
+            continue
+        diff[field_name] = (old_val, new_val)
+        setattr(contact, field_name, new_val)
+    contact.dedup_status = "resolved"
+    contact.last_verified_at = datetime.now(timezone.utc)
+    if not contact.source:
+        contact.source = "namecard"
+    # 公司自動連（2026-09-15 Terrence：「公司當然要自動連」）— 舊值同樣入 history
+    if company_id is not None and getattr(contact, "company_id", None) != company_id:
+        diff["company_id"] = (
+            str(contact.company_id) if getattr(contact, "company_id", None) else None,
+            str(company_id),
+        )
+        contact.company_id = company_id
+    card.status = "matched"
+    card.dedup_status = "replaced"
+    card.review_candidates = []
+    return diff
 
 
 @router.post("/name-cards/{name_card_id}/resolve", response_model=NameCardResponse)
@@ -2463,7 +2801,7 @@ async def resolve_name_card(
     - merge: 舊卡 link 現有 contact + backfill 缺嘅 fields（email/phone/title 唔覆蓋）+ 唔再 pending
     - separate: 用卡資料開新 contact（換公司 case — 舊卡 keep versioning：呢張卡 link 新 contact，
       之前嗰張卡 link 舊 contact — 兩張卡各自係嗰個人嘅 checkpoint）
-    兩者都會記 touchpoint（Name card scanned & linked）+ 中央通知。
+    兩者都會記中央通知；連結本身唔會再自動寫 touchpoint（KB-045：系統事件唔屬於 touchpoints）。
     """
     tenant_id = _get_tenant_id(request)
     user_id = _get_user_id(request)
@@ -2512,7 +2850,7 @@ async def resolve_name_card(
         if not existing.phone and phone:
             updates["phone"] = phone
         if not existing.job_title and parsed.get("title"):
-            updates["job_title"] = str(parsed.get("title") or "").strip() or None if not updates.get("job_title") else updates["job_title"]
+            updates["job_title"] = str(parsed.get("title") or "").strip() or None
         if not existing.source:
             updates["source"] = "namecard"
         for k, v in updates.items():
@@ -2527,9 +2865,64 @@ async def resolve_name_card(
             summary=f"Merged namecard into contact '{existing.name}'" + (f" ({', '.join(updates)})" if updates else ""),
             workspace_id=workspace_id,
         )
+        # 2026-09-15 v1：名片併入嘅欄位級歷史（source=card + 卡 id → provenance）
+        if updates:
+            await _log_contact_changes(
+                db,
+                tenant_id=tenant_id,
+                contact_id=existing.id,
+                changes={k: (None, v) for k, v in updates.items() if k != "source"},
+                source="card",
+                source_id=card.id,
+                actor_id=user_id,
+                confidence="high",
+            )
+    elif action == "replace":
+        # 2026-09-15 Terrence spec ①：取代現有 — 新卡值覆蓋 contact，
+        # 舊值自動寫入 contact_changes（= history，可 preview 舊紀錄）；
+        # contact status 同步更新（dedup_status=resolved + last_verified_at=now）。
+        # 卡冇值嘅欄位一律唔清空現有資料（唔可以因為 OCR 漏讀而洗走人手輸入）。
+        cid = target_id or (cands[0].get("contact_id") if cands else None)
+        if not cid:
+            raise HTTPException(status_code=400, detail="沒有取代目標 — 揀一個現有聯絡人")
+        existing = (
+            await db.execute(
+                select(Contact).where(Contact.id == cid, Contact.tenant_id == tenant_id)
+            )
+        ).scalar_one_or_none()
+        if not existing:
+            raise HTTPException(status_code=404, detail="取代目標聯絡人唔存在")
+        contact_id = existing.id
+        comp = await _match_or_create_company(
+            db, tenant_id, workspace_id, parsed.get("company") or "")
+        diff = _apply_card_replacement(
+            existing, card, parsed, person_name, company_id=comp.id if comp else None)
+        await _log_activity(
+            db, tenant_id=tenant_id, actor_id=user_id,
+            action="updated", entity_type="contact", entity_id=existing.id,
+            summary=(
+                f"Replaced contact '{existing.name}' with namecard data"
+                + (f" ({', '.join(diff)})" if diff else " (no change)")
+            ),
+            workspace_id=workspace_id,
+        )
+        if diff:
+            await _log_contact_changes(
+                db,
+                tenant_id=tenant_id,
+                contact_id=existing.id,
+                changes=diff,
+                source="card",
+                source_id=card.id,
+                actor_id=user_id,
+                confidence="high",
+            )
+
     else:  # separate — 開新聯絡人（換公司 case — 舊卡 keep 喺舊 contact）
         email = (parsed.get("email") or "").strip().lower() or None
         phone = (parsed.get("phone") or "").strip() or None
+        comp = await _match_or_create_company(
+            db, tenant_id, workspace_id, parsed.get("company") or "")
         new_c = Contact(
             tenant_id=tenant_id,
             workspace_id=workspace_id,
@@ -2538,6 +2931,8 @@ async def resolve_name_card(
             email=email,
             phone=phone,
             office_phone=(parsed.get("office_phone") or "").strip() or None,
+            fax=(parsed.get("fax") or "").strip() or None,
+            company_id=comp.id if comp else None,
             job_title=(parsed.get("title") or "").strip() or None,
             address=(parsed.get("address") or "").strip() or None,
             source="namecard",
@@ -2565,21 +2960,14 @@ async def resolve_name_card(
     card.contact_id = contact_id
     card.matched_by = user_id
 
-    # Touchpoint — Name card scanned & linked
-    try:
-        tp = Touchpoint(
-            tenant_id=tenant_id,
-            workspace_id=workspace_id,
-            created_by=user_id,
-            contact_id=contact_id,
-            type="namecard",
-            title="Name card scanned & linked",
-            date=datetime.now().date(),
-        )
-        db.add(tp)
-        await db.flush()
-    except Exception as _e:  # noqa: BLE001 — touchpoint best-effort
-        print(f"[namecard-resolve] touchpoint failed: {type(_e).__name__}: {_e}", flush=True)
+    # 2026-09-16（Terrence go，KB-045）：唔再自動寫 touchpoint。
+    # 系統事件（掃描／併入／連結／同步）唔屬於 touchpoints —— touchpoints 只放「人與人之間嘅
+    # 真實互動」（同 event sync、calendar sync 同理）。呢件事嘅唯一記錄已經係：
+    #   · contact_changes（欄位級 provenance：source=card + 卡 id）
+    #   · activity log（Merged / Created contact from namecard）
+    #   · 中央通知（見下）
+    # 舊寫法每次 resolve 都 insert 一筆 type=namecard、title 硬編碼英文、其餘欄位全空嘅
+    # touchpoint（14 筆已清走；回歸測試鎖住唔准再出現）。
 
     # 中央通知 — 已處理
     try:

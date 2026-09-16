@@ -169,13 +169,13 @@ async def update_tenant(tenant_id: str, body: dict, db: AsyncSession = Depends(g
         ).first()
         if existing:
             await db.execute(
-                text("UPDATE nexus_crm.module_settings SET settings = settings || :patch::jsonb, updated_at=now() WHERE id=:id"),
+                text("UPDATE nexus_crm.module_settings SET settings = settings || CAST(:patch AS jsonb), updated_at=now() WHERE id=:id"),
                 {"id": existing[0], "patch": patch},
             )
         else:
             await db.execute(
                 text("INSERT INTO nexus_crm.module_settings (tenant_id, module_key, enabled, settings) "
-                     "VALUES (:tid, 'ai', true, :patch::jsonb)"),
+                     "VALUES (:tid, 'ai', true, CAST(:patch AS jsonb))"),
                 {"tid": tenant_id, "patch": patch},
             )
     return {"ok": True}

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import SvcIcon from '../components/SvcIcon';
+import { isSafeExternalUrl, safeExternalUrl } from '../lib/safeUrl';
 import { useEscapeKey } from '../lib/useEscapeKey';
 import type { Integration } from '../data/integrations';
 
@@ -43,15 +44,11 @@ export default function ConnectDialog({ integration, onClose, onConnected }: Pro
     setWaPending(true);
     setError('');
     try {
-      const authRaw = localStorage.getItem('nexus_crm_auth');
-      if (!authRaw) { setError('Not signed in'); setWaPending(false); return; }
-      const auth = JSON.parse(authRaw);
+      // 2026-09-15 SAST：session 喺 httpOnly cookie（唔再讀 localStorage 拎 token）
       const res = await fetch('/api/v1/whatsapp/send-otp', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${auth.access_token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ phone: phone.trim() }),
       });
       if (!res.ok) {
@@ -78,15 +75,11 @@ export default function ConnectDialog({ integration, onClose, onConnected }: Pro
     setConnecting(true);
     setError('');
     try {
-      const authRaw = localStorage.getItem('nexus_crm_auth');
-      if (!authRaw) { setError('Not signed in'); setConnecting(false); return; }
-      const auth = JSON.parse(authRaw);
+      // 2026-09-15 SAST：session 喺 httpOnly cookie
       const res = await fetch('/api/v1/whatsapp/verify-otp', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${auth.access_token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ phone: phone.trim(), otp: otp.trim() }),
       });
       if (!res.ok) {
@@ -109,17 +102,10 @@ export default function ConnectDialog({ integration, onClose, onConnected }: Pro
     setError('');
 
     try {
-      const authRaw = localStorage.getItem('nexus_crm_auth');
-      if (!authRaw) { setError('Not signed in'); setConnecting(false); return; }
-      const auth = JSON.parse(authRaw);
-      const token = auth.access_token;
-
       const res = await fetch('/api/v1/integrations', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           provider: integration.id.replace('-', '_'),
           provider_display: integration.name,
@@ -145,17 +131,17 @@ export default function ConnectDialog({ integration, onClose, onConnected }: Pro
     // OAuth popup flow — opens Google/Microsoft login
     fetch('/api/v1/integrations/oauth/start', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${JSON.parse(localStorage.getItem('nexus_crm_auth') || '{}').access_token}`,
-      },
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({ provider: integration.id.replace('-', '_'), origin: window.location.origin }),
     }).then(r => r.json()).then(data => {
-      if (data.oauth_url) {
+      if (data.oauth_url && isSafeExternalUrl(data.oauth_url)) {
+        // 2026-09-15 SAST：oauth_url 由 server 回傳 → 只准 http(s)，並加 noopener,noreferrer
         const w = 600, h = 700;
         const left = window.screenX + (window.outerWidth - w) / 2;
         const top = window.screenY + (window.outerHeight - h) / 2;
-        window.open(data.oauth_url, 'nexus-oauth', `width=${w},height=${h},left=${left},top=${top},popup=1`);
+        window.open(safeExternalUrl(data.oauth_url) as string, 'nexus-oauth',
+          `width=${w},height=${h},left=${left},top=${top},popup=1,noopener,noreferrer`);
         window.addEventListener('message', function handler(e) {
           if (e.data?.type === 'nexus-oauth-complete') {
             window.removeEventListener('message', handler);

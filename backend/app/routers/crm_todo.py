@@ -18,6 +18,8 @@ from sqlalchemy.orm import selectinload
 import aiofiles
 import aiofiles.os
 import os
+import re as _re
+import uuid as _uuid
 
 from app.db import get_tenant_session
 from app.models.crm import (
@@ -727,6 +729,20 @@ async def remove_task_category(
     return None
 
 
+def _safe_upload_name(name: str | None) -> str:
+    """2026-09-15 SAST（AppScan：path traversal / arbitrary file write）。
+
+    之前 `os.path.join(dir, file.filename)` 直接用 client 提供嘅檔名 →
+    filename 帶 `../../` 就可以寫出 uploads 目錄（例如覆蓋 .env / systemd unit）。
+    呢度只取 basename、只准 [A-Za-z0-9._-]、prepend 隨機 hex，保證寫唔出目錄。
+    """
+    base = os.path.basename((name or "").replace("\\", "/"))
+    base = _re.sub(r"[^A-Za-z0-9._-]", "_", base).lstrip(".")[-80:]
+    if not base:
+        base = "file"
+    return f"{_uuid.uuid4().hex[:8]}_{base}"
+
+
 # ===========================================================================
 # ATTACHMENTS
 # ===========================================================================
@@ -752,8 +768,12 @@ async def upload_attachment(
     await aiofiles.os.makedirs(task_upload_dir, exist_ok=True)
 
     # Save file
+    # 2026-09-15 SAST：唔可以用 client 檔名砌 path（`../` 可寫出 uploads 目錄）。
     content = await file.read()
-    file_path = os.path.join(task_upload_dir, file.filename)
+    safe_name = _safe_upload_name(file.filename)
+    file_path = os.path.join(task_upload_dir, safe_name)
+    if not os.path.realpath(file_path).startswith(os.path.realpath(task_upload_dir) + os.sep):
+        raise HTTPException(status_code=400, detail="Invalid filename")
     async with aiofiles.open(file_path, "wb") as f:
         await f.write(content)
 

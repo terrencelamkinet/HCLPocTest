@@ -17,7 +17,7 @@ import TextStyle from '@tiptap/extension-text-style'
 import Underline from '@tiptap/extension-underline'
 import CharacterCount from '@tiptap/extension-character-count'
 import Dropcursor from '@tiptap/extension-dropcursor'
-import { Bold, Italic, Underline as UnderlineIcon, Strikethrough, Code, Heading1, Heading2, Heading3, ListOrdered, ListChecks, Quote, Minus, Link as LinkIcon, Table as TableIcon, Undo2, Redo2, ListPlus, ScissorsLineDashed, Languages, SpellCheck2, Palette, ArrowRightLeft, Keyboard, Highlighter, ImageIcon, List, Sparkles, Wand2, Video as VideoIcon, Mic, Paperclip } from 'lucide-react'
+import { Bold, Italic, Underline as UnderlineIcon, Strikethrough, Code, Heading1, Heading2, Heading3, ListOrdered, ListChecks, Quote, Minus, Link as LinkIcon, Table as TableIcon, Undo2, Redo2, ListPlus, ScissorsLineDashed, Languages, SpellCheck2, Palette, Keyboard, Highlighter, ImageIcon, List, Sparkles, Wand2, Video as VideoIcon, Mic, Paperclip } from 'lucide-react'
 import SvcIcon from '../../components/SvcIcon'
 import { apiClient } from '../../lib/api'
 import { useToast } from '../v4/useToast'
@@ -84,8 +84,6 @@ const AI_ACTIONS = [
   { id: 'fix', labelKey: 'editor.aiFix', fallback: '修正文法', icon: SpellCheck2, kbd: '' },
   { id: 'summarize', labelKey: 'editor.aiSummarize', fallback: '生成摘要', icon: Sparkles, kbd: '' },
 ]
-
-const BLOCK_COLORS = ['#EF4444', '#F59E0B', '#22C55E', '#3B82F6', '#7C5CFC', '#EC4899', '#6B7280', '#000000']
 
 /* 2026-09-14：AI 提案卡嘅預覽 —— 只保留白名單 tag 並 strip 所有屬性。
    原因：預覽用 dangerouslySetInnerHTML render LLM 輸出；屬性（onerror / href=javascript: 等）
@@ -173,6 +171,10 @@ export default function NexusEditor({
 
   const [focused, setFocused] = useState(false)
   const [saveState, setSaveState] = useState<SaveState>('idle')
+  /* 2026-09-16 Terrence：「所有 nexus editor 喺 detail page edit 時可以收藏 tool 先」——
+     格式工具列預設收起（"格式" 一個掣），撳落去才展開。收埋唔等於冇位：
+     bar 本身喺正常 flow（唔係 overlay），所以展開嗰陣只會推低內容，唔會擋住文字。 */
+  const [toolsOpen, setToolsOpen] = useState(false)
   const [aiMenuOpen, setAiMenuOpen] = useState(false)
   const [aiBubbleOpen, setAiBubbleOpen] = useState(false)
   const [aiRunning, setAiRunning] = useState(false)
@@ -183,8 +185,6 @@ export default function NexusEditor({
   const [linkPopover, setLinkPopover] = useState<{ x: number; y: number } | null>(null)
   const [linkValue, setLinkValue] = useState('')
   const [blockHandlePos, setBlockHandlePos] = useState<number | null>(null)
-  const [blockMenuOpen, setBlockMenuOpen] = useState<{ x: number; y: number; pos: number } | null>(null)
-  const [colorSubmenuOpen, setColorSubmenuOpen] = useState(false)
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false)
   const [selectionBubble, setSelectionBubble] = useState<{ x: number; y: number } | null>(null)
   /* 2026-09-14：bubble 位置要量度 menu 自身大細後才算（見下面 useLayoutEffect） */
@@ -233,7 +233,6 @@ export default function NexusEditor({
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => { void saveNow(html) }, autosaveMs)
   }, [autosaveMs, saveNow])
-  const blockMenuRef = useRef<HTMLDivElement>(null)
   const contentAreaRef = useRef<HTMLDivElement>(null)
 
   /* ── Highlight radial menu ── */
@@ -426,14 +425,6 @@ export default function NexusEditor({
     return () => window.removeEventListener('keydown', onKeydown)
   }, [editor])
 
-  useEffect(() => {
-    const onClickOutside = (e: MouseEvent) => {
-      if (blockMenuRef.current && !blockMenuRef.current.contains(e.target as Node)) { setBlockMenuOpen(null); setColorSubmenuOpen(false) }
-    }
-    document.addEventListener('mousedown', onClickOutside)
-    return () => document.removeEventListener('mousedown', onClickOutside)
-  }, [])
-
   const moveCurrentBlock = (dir: 1 | -1) => {
     if (!editor) return
     const { $from } = editor.state.selection
@@ -452,60 +443,9 @@ export default function NexusEditor({
       : t('editor.blockMovedDown', { defaultValue: '區塊已下移' }))
   }
 
-  const openBlockMenu = (e: React.MouseEvent) => {
-    if (blockHandlePos === null) return
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-    setBlockMenuOpen({ x: rect.left, y: rect.bottom + 4, pos: blockHandlePos })
-  }
-
-  const turnBlockInto = (type: 'paragraph' | 'heading1' | 'heading2' | 'bulletList' | 'orderedList' | 'taskList' | 'blockquote') => {
-    if (!editor) return
-    editor.chain().focus()
-    if (type === 'paragraph') editor.chain().focus().setParagraph().run()
-    else if (type === 'heading1') editor.chain().focus().setHeading({ level: 1 }).run()
-    else if (type === 'heading2') editor.chain().focus().setHeading({ level: 2 }).run()
-    else if (type === 'bulletList') editor.chain().focus().toggleBulletList().run()
-    else if (type === 'orderedList') editor.chain().focus().toggleOrderedList().run()
-    else if (type === 'taskList') editor.chain().focus().toggleTaskList().run()
-    else if (type === 'blockquote') editor.chain().focus().toggleBlockquote().run()
-    setBlockMenuOpen(null)
-  }
-
-  const duplicateBlock = () => {
-    if (!editor || blockMenuOpen === null) return
-    const node = editor.state.doc.nodeAt(blockMenuOpen.pos)
-    if (!node) return
-    const endPos = blockMenuOpen.pos + node.nodeSize
-    editor.view.dispatch(editor.state.tr.insert(endPos, node))
-    setBlockMenuOpen(null)
-    showToast(t('editor.blockCopied', { defaultValue: '已複製區塊' }))
-  }
-
-  const deleteBlock = () => {
-    if (!editor || blockMenuOpen === null) return
-    const node = editor.state.doc.nodeAt(blockMenuOpen.pos)
-    if (!node) return
-    editor.view.dispatch(editor.state.tr.delete(blockMenuOpen.pos, blockMenuOpen.pos + node.nodeSize))
-    setBlockMenuOpen(null)
-  }
-
-  const applyBlockColor = (color: string) => {
-    if (!editor || blockMenuOpen === null) return
-    const node = editor.state.doc.nodeAt(blockMenuOpen.pos)
-    if (!node) return
-    editor.chain().setTextSelection({ from: blockMenuOpen.pos, to: blockMenuOpen.pos + node.nodeSize }).setColor(color).run()
-    setBlockMenuOpen(null); setColorSubmenuOpen(false)
-  }
-
-  const copyBlockLink = () => {
-    navigator.clipboard?.writeText(`${window.location.href}#block-${blockMenuOpen?.pos}`)
-    showToast(t('editor.blockLinkCopied', { defaultValue: '已複製區塊連結' }))
-    setBlockMenuOpen(null)
-  }
-
   const runAiAction = useCallback(async (actionId: string) => {
     if (!editor) return
-    setAiMenuOpen(false); setAiBubbleOpen(false); setBlockMenuOpen(null); setAiRunning(true)
+    setAiMenuOpen(false); setAiBubbleOpen(false); setAiRunning(true)
     const { from, to } = editor.state.selection
     const selectedText = editor.state.doc.textBetween(from, to, ' ')
     const scope = selectedText.trim() ? selectedText : editor.getText()
@@ -726,7 +666,16 @@ export default function NexusEditor({
       />
       {/* ═══ DESKTOP / HARDWARE-KEYBOARD TOOLBAR ═══ */}
       {!useMobileUI && (
-        <div className="nxe-toolbar">
+        <div className={`nxe-toolbar${toolsOpen ? '' : ' nxe-toolbar-collapsed'}`}>
+          {/* 2026-09-16 Terrence：工具預設收起，撳呢個掣才展開 */}
+          <button type="button" className={`nxe-tools-toggle${toolsOpen ? ' open' : ''}`}
+            onClick={() => setToolsOpen(v => !v)} aria-expanded={toolsOpen}
+            aria-label={t('editor.formatTools', { defaultValue: '格式工具' }) as string}>
+            <SvcIcon name="sliders-horizontal" size={15} />
+            <span>{t('editor.formatTools', { defaultValue: '格式' })}</span>
+            <SvcIcon name={toolsOpen ? 'chevron-up' : 'chevron-down'} size={13} />
+          </button>
+          {toolsOpen && (<>
           <div className="nxe-tb-group">
             <button className="nxe-tb-btn" disabled={!editor.can().undo()} onClick={() => editor.chain().focus().undo().run()}>
               <Undo2 size={15} /><span className="nxe-kbd-tip">Undo <kbd>⌘Z</kbd></span>
@@ -778,6 +727,7 @@ export default function NexusEditor({
             <button className="nxe-tb-btn" title={t('editor.attachment', { defaultValue: '附件' })} onClick={() => pickMedia('file')}><Paperclip size={15} /></button>
             <button className="nxe-tb-btn" onClick={insertTable}><TableIcon size={15} /></button>
           </div>
+          </>)}
 
           <div className="nxe-tb-spacer" />
           {hasHardwareKeyboard && isMobileViewport && (
@@ -911,8 +861,11 @@ export default function NexusEditor({
         <div ref={contentAreaRef} className="nxe-content" style={{ minHeight }} onMouseMove={handleContentMouseMove}>
           {!useMobileUI && blockHandlePos !== null && (
             <div className="nxe-block-handle visible" style={{ top: 16 }}>
-              <button className="nxe-handle-btn" onClick={() => editor.chain().focus().insertContentAt(blockHandlePos, '<p></p>').run()}><SvcIcon name="plus" size={14} /></button>
-              <button className="nxe-handle-btn grip" onClick={openBlockMenu}><SvcIcon name="grip-vertical" size={14} /></button>
+              <button className="nxe-handle-btn" aria-label={t('editor.insertParagraph', { defaultValue: '插入段落' }) as string}
+                onClick={() => editor.chain().focus().insertContentAt(blockHandlePos, '<p></p>').run()}><SvcIcon name="plus" size={14} /></button>
+              {/* 2026-09-16 Terrence：原本呢度仲有粒 grip（⋮⋮）—— 實際冇 drag 功能
+                  （code 冇 draggable／dragstart），只係開區塊 menu，但 CSS 寫 cursor:grab 誤導。
+                  用戶決定「grip 直接移除」→ 連只可以由佢開嘅區塊 menu 一齊收走。 */}
             </div>
           )}
           <EditorContent editor={editor} />
@@ -926,25 +879,6 @@ export default function NexusEditor({
             <button className="nxe-bubble-btn" onClick={() => setLinkPopover(null)}><SvcIcon name="x" size={13} /></button>
           </div>
         )}
-
-        {blockMenuOpen && (
-          <div className="nxe-block-context-menu" ref={blockMenuRef} style={{ left: 46, top: 40 }}>
-            <div className="nxe-bcm-item" onClick={duplicateBlock}><SvcIcon name="copy" size={14} />{t('editor.duplicateBlock', { defaultValue: '複製區塊' })}</div>
-            <div className="nxe-bcm-item" onClick={copyBlockLink}><SvcIcon name="link-2" size={14} />{t('editor.copyLink', { defaultValue: '複製連結' })}</div>
-            <div className="nxe-bcm-sep" />
-            <div className="nxe-bcm-item" onClick={() => turnBlockInto('paragraph')}><ArrowRightLeft size={14} />{t('editor.toParagraph', { defaultValue: '轉為段落' })}</div>
-            <div className="nxe-bcm-item" onClick={() => turnBlockInto('heading1')}><Heading1 size={14} />{t('editor.toHeading', { defaultValue: '轉為大標題' })}</div>
-            <div className="nxe-bcm-item" onClick={() => turnBlockInto('taskList')}><ListChecks size={14} />{t('editor.toTodo', { defaultValue: '轉為待辦' })}</div>
-            <div className="nxe-bcm-item" onClick={() => setColorSubmenuOpen(v => !v)}><Palette size={14} />{t('editor.color', { defaultValue: '顏色' })}</div>
-            {colorSubmenuOpen && (
-              <div className="nxe-bcm-colors">
-                {BLOCK_COLORS.map(c => <button key={c} className="nxe-bcm-color-swatch" style={{ background: c }} onClick={() => applyBlockColor(c)} />)}
-              </div>
-            )}
-            <div className="nxe-bcm-sep" />
-            <div className="nxe-bcm-item danger" onClick={deleteBlock}><SvcIcon name="trash-2" size={14} />{t('editor.deleteBlock', { defaultValue: '刪除區塊' })}</div>
-          </div>
-        )}
       </div>
 
       {/* ═══ MOBILE TOOLBAR — docked above on-screen keyboard ═══ */}
@@ -952,6 +886,11 @@ export default function NexusEditor({
         <div className="nxe-mobile-toolbar">
           <button className="nxe-mtb-btn" onClick={() => { setBlockQuery(''); setMobileSheetOpen(true) }}
             aria-label={t('editor.insertBlock', { defaultValue: '插入區塊' }) as string}><SvcIcon name="plus" size={19} /></button>
+          {/* 2026-09-16 Terrence：mobile 一樣 —— 格式工具預設收起（撳「格式」才展開） */}
+          <button type="button" className={`nxe-mtb-btn nxe-mtb-toggle${toolsOpen ? ' active' : ''}`}
+            onClick={() => setToolsOpen(v => !v)} aria-expanded={toolsOpen}
+            aria-label={t('editor.formatTools', { defaultValue: '格式工具' }) as string}><SvcIcon name="sliders-horizontal" size={19} /></button>
+          {toolsOpen && (<>
           {/* P1-⑦：spec 要求嘅 primary accessory = Add block／Undo／Redo／Bold／Checklist／Link／AI。
               Undo/Redo 係呢條 bar 之前冇嘅（desktop 一直有）；disabled 跟 editor.can() 同 desktop 一致。 */}
           <button className="nxe-mtb-btn" disabled={!editor.can().undo()} onClick={() => editor.chain().focus().undo().run()}
@@ -972,6 +911,7 @@ export default function NexusEditor({
           <button className={`nxe-mtb-btn ${editor.isActive('taskList') ? 'active' : ''}`} onClick={() => editor.chain().focus().toggleTaskList().run()}
             aria-pressed={editor.isActive('taskList')} aria-label={t('editor.taskList', { defaultValue: '待辦清單' }) as string}><ListChecks size={18} /></button>
           <div className="nxe-mtb-divider" />
+          </>)}
           <button className="nxe-mtb-ai" onClick={() => setAiMenuOpen(true)}><SvcIcon name="sparkles" size={14} /> AI</button>
           <button className="nxe-mtb-kbd-dismiss" onClick={() => (document.activeElement as HTMLElement)?.blur()}
             aria-label={t('editor.hideKeyboard', { defaultValue: '收起鍵盤' }) as string}><SvcIcon name="chevron-down" size={18} /></button>

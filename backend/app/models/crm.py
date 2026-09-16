@@ -1,8 +1,8 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Text, Boolean, DateTime, ForeignKey, Integer, Date, Numeric, JSON, ARRAY, UniqueConstraint
+from sqlalchemy import Column, String, Text, Boolean, DateTime, ForeignKey, Integer, Date, Numeric, JSON, ARRAY, UniqueConstraint, Index
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, validates
 from app.db import Base
 
 
@@ -55,6 +55,10 @@ class Contact(Base):
     email = Column(Text)
     phone = Column(Text)
     office_phone = Column(Text)
+    # 2026-09-16（KB-046）：schemas/UI/OCR 一直有 mobile + fax，但 model 冇 ⇒
+    # `Contact(**payload.model_dump())` 每次 TypeError（HTTP 500）。migration 032 補回。
+    mobile = Column(Text)
+    fax = Column(Text)
     numbers = Column(ARRAY(Text), default=lambda: [])
     job_title = Column(Text)
     department = Column(Text)
@@ -318,6 +322,16 @@ class Note(Base):
     contact = relationship("Contact", back_populates="notes_rel")
     company = relationship("Company", back_populates="notes_rel")
 
+    # ── 2026-09-15 SAST（AppScan HCLPoCTest：stored XSS）──────────────────
+    # Note.content 係用戶／AI 提供嘅 HTML，前端用 dangerouslySetInnerHTML render。
+    # 清洗放喺 ORM 層 = 所有寫入路徑（create / update / restore revision /
+    # template / AI write flow / 將來新增）一次過覆蓋，唔需要逐個 endpoint 加 guard。
+    # 清洗邏輯（allowlist）見 app/services/html_sanitize.py。
+    @validates("content")
+    def _sanitize_content(self, _key, value):
+        from app.services.html_sanitize import sanitize_note_html
+        return sanitize_note_html(value)
+
 
 class NoteRevision(Base):
     """Notes V2 Stage C (T-03) — 筆記版本快照（migration 019）。
@@ -368,6 +382,39 @@ class ActivityLog(Base):
     summary = Column(Text)
     changes = Column(JSON)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
+class ContactChange(Base):
+    """欄位級聯絡人歷史（v1，2026-09-15 Terrence + P仔 review）— 答「幾時轉、轉咗咩」。
+
+    P仔 判斷：`activity_log` 係 event log（粗粒度、只存更新後快照、冇 old value），
+    唔應該兼做欄位歷史（每次查詢都要 app 層 diff JSON）。所以另開呢張 append-only 表。
+
+    - `source`：card（名片併入／掃卡）| manual（人手／UI／API）| import | merge | ai | legacy（舊資料補錄）
+    - `confidence`：high | medium | low（nullable — 決定性操作唔需要）
+    - `verification_status`：unverified | verified | retracted（P仔：錯歷史用 retract 唔硬刪）
+    - `source_id`：來源物件 id（例：name_card id）→ provenance
+    """
+    __tablename__ = "contact_changes"
+    __table_args__ = (
+        Index("ix_contact_changes_contact_changed_at", "contact_id", "changed_at"),
+        {"schema": "nexus_crm"},
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("nexus_auth.nexus_auth_tenants.id", ondelete="CASCADE"), nullable=False)
+    contact_id = Column(UUID(as_uuid=True), ForeignKey("nexus_crm.contacts.id", ondelete="CASCADE"), nullable=False)
+    field = Column(Text, nullable=False)
+    old_value = Column(Text)
+    new_value = Column(Text)
+    source = Column(Text, nullable=False)
+    source_id = Column(UUID(as_uuid=True))
+    actor_id = Column(UUID(as_uuid=True), ForeignKey("nexus_auth.nexus_auth_users.id", ondelete="SET NULL"))
+    confidence = Column(Text)
+    verification_status = Column(Text, nullable=False, default="unverified")
+    retracted_at = Column(DateTime(timezone=True))
+    retracted_by = Column(UUID(as_uuid=True), ForeignKey("nexus_auth.nexus_auth_users.id", ondelete="SET NULL"))
+    changed_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
 
 
 class Tag(Base):

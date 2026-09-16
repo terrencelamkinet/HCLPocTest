@@ -22,6 +22,78 @@ from app.services.provider_keys import cached_provider_key  # noqa: E402  (G08 i
 import numpy as np
 
 
+# ── 電話分類（2026-09-15 Terrence：「除了 office phone 外要有 mobile phone」）──
+# 舊邏輯：任何 8 位數字都當 mobile ⇒ 公司直線（8 位）會被當 mobile、真手機反而跌入 office。
+# 新邏輯：先睇 card 上嘅 label（最準），label 唔足才用 HK 手機特徵（8 位、開頭 5/6/9）。
+_MOBILE_LABEL = re.compile(r"mobile|mob\.?|cell|手機|手提|行動|whatsapp|(^|\s)m\s*[:：]", re.I)
+_OFFICE_LABEL = re.compile(r"\btel\b|office|direct|公司|電話|直線|(^|\s)[totd]\s*[:：]", re.I)
+_FAX_LABEL = re.compile(r"\bfax\b|傳真|圖文傳真|(^|\s)f\s*[:：]", re.I)
+
+# 地址關鍵字：strong = 有門牌／街道／區（單靠佢就夠）；weak = 只有樓名（要併埋鄰行）
+_ADDR_STRONG = re.compile(
+    r"號|室|樓|層|座|街|道|路|Flat|Unit|Floor|Suite|Room|Street|Road|Avenue|"
+    r"Hong Kong|Kowloon|New Territories",
+    re.I,
+)
+_ADDR_WEAK = re.compile(
+    r"大廈|中心|廣場|工業|Tower|Centre|Center|Building|Industrial|區",
+    re.I,
+)
+
+
+def _hk_digits(phone: str) -> str:
+    d = re.sub(r"\D", "", phone)
+    return d[3:] if d.startswith("852") and len(d) == 11 else d
+
+
+def classify_phones(blob: str, phones: list[str]) -> tuple[str | None, str | None, str | None]:
+    """回傳 (mobile, office, fax)：先 label，再用 HK 號碼特徵 fallback。
+
+    fax 一定唔會當成 office（先驗 fax label）。
+    """
+    mobile: str | None = None
+    office: str | None = None
+    fax: str | None = None
+    for p in phones:
+        i = blob.find(p)
+        # 只睇「同段、號碼之前」最近嘅 label，避免食到隔籬號碼嘅 label
+        pre = blob[max(0, i - 14): i] if i >= 0 else ""
+        near = re.split(r"[\n;|,、]", pre)[-1]
+        if fax is None and _FAX_LABEL.search(near):
+            fax = p
+        elif mobile is None and _MOBILE_LABEL.search(near):
+            mobile = p
+        elif office is None and _OFFICE_LABEL.search(near):
+            office = p
+    for p in phones:
+        if p in (mobile, office, fax):
+            continue
+        d = _hk_digits(p)
+        if mobile is None and len(d) == 8 and d[0] in "569":
+            mobile = p
+        elif office is None and len(d) >= 7:
+            office = p
+    return mobile, office, fax
+
+
+def extract_address(lines: list[str]) -> str:
+    """保守取公司地址：要有 strong 關鍵字（門牌／街道／區）才算，唔靠猜。"""
+    for i, ln in enumerate(lines):
+        s = (ln or "").strip()
+        if len(s) < 6 or not _ADDR_STRONG.search(s):
+            continue
+        prev = (lines[i - 1] or "").strip() if i > 0 else ""
+        # 上一行係樓名（weak-only、短）→ 併埋一齊（香港地址常見兩行式）
+        if prev and len(prev) <= 40 and _ADDR_WEAK.search(prev) and not _ADDR_STRONG.search(prev):
+            return f"{prev} {s}"
+        return s
+    for ln in lines:
+        s = (ln or "").strip()
+        if len(s) >= 6 and _ADDR_WEAK.search(s):
+            return s
+    return ""
+
+
 def _detect_card_region(img: Any) -> Any:
     """Detect the business-card quadrilateral → perspective-cropped copy.
 
@@ -427,26 +499,22 @@ def parse_namecard(raw_text: str) -> dict[str, Any]:
         if cjk_runs:
             chinese_name = "".join(cjk_runs)
 
-    # Split phone into mobile vs office by count of digits / common prefixes
-    mobile, office = None, None
-    for p in phones:
-        digits = re.sub(r"\D", "", p)
-        if mobile is None and (digits.startswith(("6", "9", "5")) or len(digits) == 8):
-            mobile = p
-        elif office is None:
-            office = p
+    # Split phone into mobile / office / fax（label 優先）
+    mobile, office, fax = classify_phones(blob, phones)
 
     return {
         "name": name_line or "",
         "chinese_name": chinese_name or "",
         "title": title or "",
         "company": company or "",
-        "phone": mobile or (phones[0] if phones else ""),
+        "phone": mobile or office or (phones[0] if phones else ""),
+        "mobile": mobile or "",
         "office_phone": office or "",
+        "fax": fax or "",
         "email": emails[0] if emails else "",
         "emails": emails,
         "website": urls[0] if urls else "",
-        "address": "",
+        "address": extract_address(lines) or "",
         "linkedin": linkedin.group(0) if linkedin else "",
         "raw_lines": lines,
     }

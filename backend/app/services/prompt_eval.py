@@ -149,7 +149,9 @@ async def run_eval(
         try:
             output = await llm_call(prompt) or ""
         except Exception as e:  # LLM 爆唔應該炸成個 eval run
-            err = f"LLM call 失敗：{type(e).__name__}: {e}"
+            # 2026-09-15 SAST：唔好將 raw exception message 放入 API 回傳（會漏內部細節／
+            # 上游 provider 資訊）。完整資訊仍然入 server log。
+            err = f"LLM call 失敗（{type(e).__name__}）"
             logger.exception("prompt_eval: LLM call failed (case=%s)", case.key)
         latency_ms = int((time.perf_counter() - c0) * 1000)
 

@@ -97,7 +97,7 @@ async def send_otp(
 ):
     """
     Send OTP verification message to start WhatsApp binding.
-    Body: { "phone": "+85298765432" }
+    Body: { "phone": "+85200000000" }
     Returns OK once OTP is sent via WhatsApp.
     """
     body = await request.json()
@@ -179,7 +179,7 @@ async def verify_otp(
 ):
     """
     Verify OTP and bind WhatsApp number to the current user.
-    Body: { "phone": "+85298765432", "otp": "482913" }
+    Body: { "phone": "+85200000000", "otp": "482913" }
     """
     body = await request.json()
     phone = body.get("phone", "").strip()

@@ -1,47 +1,43 @@
 /**
  * Auth helper for Playwright E2E tests.
  *
- * Logs in via the backend /auth/login endpoint, stores the returned
- * token in localStorage so the frontend picks it up on page load.
+ * 2026-09-15 SAST（AppScan「Validation Required — Local Storage Insecure」）：
+ * session 已經由 localStorage JWT 改成 httpOnly cookie（見 src/lib/api.ts）。
+ * 所以呢個 helper 唔再偷 token 塞落 localStorage — 改為**真 login**，等 server
+ * 種 cookie，之後 Playwright 個 context 會自動帶住。
+ *
+ * 舊版順手修埋兩個 bug（本身就係壞嘅）：
+ *   1. `POST ${BACKEND}/auth/login` 漏咗 `/api/v1` → 永遠 404，靜靜咁跌落 fallback；
+ *   2. fallback 打 `/api/v1/auth/test-token`（根本冇呢個 endpoint）+ 硬編碼兩個 UUID。
+ *
+ * 密碼唔入 repo：要喺環境變數 E2E_PASSWORD 提供。
  */
 
-import { Page } from '@playwright/test';
+import { Page, expect } from '@playwright/test';
 
-const BACKEND = 'http://localhost:8001';
-const TEST_EMAIL = 'terrence@kinetix.com';
-const TEST_PASSWORD = '...'; // replace with actual test credentials if login works
+const TEST_EMAIL = 'terrence_lam@kinetix.com.hk';
 
-/**
- * Log in and store the JWT in localStorage.
- * Falls back to a pre-issued token if the login endpoint is unavailable.
- */
 export async function loginAsTerrence(page: Page): Promise<void> {
-  // Attempt real login first
-  try {
-    const resp = await page.request.post(`${BACKEND}/auth/login`, {
-      data: { email: TEST_EMAIL, password: TEST_PASSWORD },
-    });
-    if (resp.ok()) {
-      const body = await resp.json() as { access_token: string };
-      await page.evaluate((token) => {
-        localStorage.setItem('auth_token', token);
-        localStorage.setItem('auth_user', JSON.stringify({ email: 'terrence@kinetix.com' }));
-      }, body.access_token);
-      return;
-    }
-  } catch {
-    // login endpoint may not exist — fall through to token generation
-  }
+  const password = process.env.E2E_PASSWORD ?? '';
+  if (!password) throw new Error('E2E_PASSWORD 未設定 — 唔准將密碼寫入 repo（見 SECURITY-FIXES.md）');
 
-  // Fallback: generate a token via backend's internal service
-  const tokenResp = await page.request.post(`${BACKEND}/api/v1/auth/test-token`, {
-    data: { tenant_id: 'ae6b27c7-8a77-4167-add7-3a498d59536a', user_id: '9f3e7b11-e529-4cf8-82a6-2a62e4e5b643' },
-  });
-  if (tokenResp.ok()) {
-    const body = await tokenResp.json() as { access_token: string };
-    await page.evaluate((token) => {
-      localStorage.setItem('auth_token', token);
-      localStorage.setItem('auth_user', JSON.stringify({ email: 'terrence@kinetix.com' }));
-    }, body.access_token);
-  }
+  await page.goto('/sign-in');
+  await page.fill('input[type="email"]', TEST_EMAIL);
+  await page.fill('input[type="password"]', password);
+  await page.click('button[type="submit"]');
+  await expect(page).toHaveURL(/dashboard/, { timeout: 15000 });
+
+  // 回歸測試：session cookie 一定要係 httpOnly（localStorage 唔准有 token）
+  const cookies = await page.context().cookies();
+  const at = cookies.find((c) => c.name === 'nexus_at');
+  expect(at, 'nexus_at cookie 應該已經種咗').toBeTruthy();
+  expect(at?.httpOnly, 'nexus_at 一定要 HttpOnly').toBe(true);
+  const leaked = await page.evaluate(() => JSON.stringify(localStorage));
+  expect(leaked.includes('eyJ'), 'localStorage 唔准有 JWT').toBe(false);
+}
+
+/** 登出：清 cookie（唔再靠清 localStorage） */
+export async function logout(page: Page): Promise<void> {
+  await page.context().clearCookies();
+  await page.evaluate(() => localStorage.clear());
 }

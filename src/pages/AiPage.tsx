@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import SvcIcon from '../components/SvcIcon';
-import { apiClient, getStoredAuth } from '../lib/api';
+import { apiClient } from '../lib/api';
 import FollowUpChips from '../components/ai/chat/core/FollowUpChips';
 import MarkdownMessage from '../components/MarkdownRenderer';
 import { useTranslation } from 'react-i18next';
@@ -101,7 +101,9 @@ export default function AiPage() {
     try {
       const resp = await fetch('/api/v1/ai/chat/stream', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getStoredAuth()?.access_token || ''}` },
+        // 2026-09-15 SAST：session 喺 httpOnly cookie（SameSite=Lax + 同源）
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ messages: [{ role: 'user', content: text }], session_id: sessionId || null, agent_id: null }),
         signal: controller.signal,
       });

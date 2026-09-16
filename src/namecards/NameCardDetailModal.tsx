@@ -21,12 +21,16 @@ interface Props {
 export function NameCardDetailModal({ card, onClose, onSaved, onDeleted }: Props) {
   const { t } = useTranslation()
   const pd = card.parsed_data || {}
-  const [imageMode, setImageMode] = useState<'original' | 'cropped'>('cropped')
   const [form, setForm] = useState({
     name: pd.name || card.name || '',
     title: pd.title || card.title || '',
     email: pd.email || card.email || '',
     phone: pd.phone || card.phone || '',
+    /* 2026-09-15 Terrence：「除了 office phone 外要有 mobile phone」⇒ 兩個號碼分開欄位 */
+    mobile: (pd as any).mobile || (card as any).mobile || '',
+    office_phone: (pd as any).office_phone || (card as any).office_phone || '',
+    fax: (pd as any).fax || (card as any).fax || '',
+    address: (pd as any).address || (card as any).address || '',
     company: pd.company || card.company || '',
   })
   const [tags, setTags] = useState<string[]>(card.tags || [])
@@ -59,9 +63,14 @@ export function NameCardDetailModal({ card, onClose, onSaved, onDeleted }: Props
     }
   }, [onClose])
 
-  const handleResolve = async (action: 'merge' | 'separate') => {
-    if (action === 'merge' && !candRaw?.contact_id) {
-      alert(t('nameCard.noMergeTarget', { defaultValue: '冇合併目標 — 先揀一個現有聯絡人' }))
+  /* 2026-09-15 Terrence spec：pending 卡重複決定 = 3 個 object
+     ① replace  — 取代現有（舊值自動存入 contact_changes history；contact status 更新）
+     ② separate — 開新記錄（唔覆蓋現有，兩者並存）
+     ③ delete   — 刪除新卡（唔覆蓋、唔留痕）→ handleDiscard
+     ⚠️ 舊版只有 merge（只補空白、永不覆蓋）＋ separate，同 spec 唔一致。 */
+  const handleResolve = async (action: 'replace' | 'separate') => {
+    if (action === 'replace' && !candRaw?.contact_id) {
+      alert(t('nameCard.noMergeTarget', { defaultValue: '冇取代目標 — 先揀一個現有聯絡人' }))
       return
     }
     setResolving(true)
@@ -87,6 +96,8 @@ export function NameCardDetailModal({ card, onClose, onSaved, onDeleted }: Props
     try {
       await apiClient.patch(`/api/v1/crm/name-cards/${card.id}`, {
         ...form, tags, contact_id: linkedContact?.id || null,
+        /* phone = 主要電話（手機優先）；mobile / office_phone 分開存 */
+        phone: form.mobile || form.office_phone || form.phone,
       })
       onSaved()
     } catch (e: any) {
@@ -96,14 +107,24 @@ export function NameCardDetailModal({ card, onClose, onSaved, onDeleted }: Props
     }
   }
 
-  const handleRecrop = async () => {
-    await apiClient.post(`/api/v1/crm/name-cards/${card.id}/recrop`, {})
-  }
-
   const handleDelete = async () => {
     if (!confirm(t('nameCard.confirmDelete', { defaultValue: '刪除呢張名片？' }))) return
     await apiClient.delete(`/api/v1/crm/name-cards/${card.id}`)
     onDeleted()
+  }
+
+  /* ③ 刪除新卡 — 唔覆蓋現有聯絡人，亦唔留任何 contact 痕跡 */
+  const handleDiscard = async () => {
+    if (!confirm(t('nameCard.confirmDiscard', { defaultValue: '刪除呢張新卡？現有聯絡人唔會被改動。' }))) return
+    setResolving(true)
+    try {
+      await apiClient.delete(`/api/v1/crm/name-cards/${card.id}`)
+      onDeleted()
+    } catch (e: any) {
+      alert(e?.detail || e?.message || '刪除失敗')
+    } finally {
+      setResolving(false)
+    }
   }
 
   const handleDuplicate = async () => {
@@ -120,44 +141,30 @@ export function NameCardDetailModal({ card, onClose, onSaved, onDeleted }: Props
     <div className="nx-modal-overlay is-open" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
       <div className="nx-modal nc-detail-modal is-open" role="dialog" aria-modal="true"
         aria-labelledby="nc-detail-title" tabIndex={-1} ref={dialogRef}>
-        <div className="nx-modal-header">
-          <div className="nx-modal-title" id="nc-detail-title">{t('nameCard.detailTitle', { defaultValue: '名片詳情' })}</div>
+        {/* 2026-09-15 Terrence「標題走位」：舊版用咗全 repo 冇定義嘅 .nx-modal-header /
+            .nx-modal-title ⇒ 標題實測 13.76px / font-weight 400 ✗（手機同桌面都係）。
+            改成全站 modal 標準 .nx-modal-head + h2（nexus-modal-tokens.css §Modal shell：
+            18px/600，≥1280px 22px）＋ 順便取回手機 sticky header（關閉掣永遠可見）。 */}
+        <div className="nx-modal-head">
+          <h2 id="nc-detail-title">{t('nameCard.detailTitle', { defaultValue: '名片詳情' })}</h2>
           <button type="button" className="nx-modal-x" aria-label={t('common.close', { defaultValue: '關閉' })}
             onClick={onClose}><SvcIcon name="x" size={16} /></button>
         </div>
 
         <div className="nc-detail-modal-body">
-          {/* ═══ Left: Original vs Cropped image ═══ */}
+          {/* ═══ Left: 名片圖（只有 Cropped）═══
+              2026-09-15 Terrence spec：冇 Original 只有 Cropped ⇒ 拆走 tabs；
+              圖要 full width（舊版 frame 硬寫 aspect-ratio 1.58:1 + contain ⇒ 左右留白）；
+              refresh（recrop）／download 用途不大 ⇒ 拆走。 */}
           <div className="nc-detail-images">
-            <div className="nc-image-tabs">
-              <div className={`nc-image-tab ${imageMode === 'original' ? 'active' : ''}`} onClick={() => setImageMode('original')}>
-                {t('nameCard.original', { defaultValue: '原圖' })}
-              </div>
-              <div className={`nc-image-tab ${imageMode === 'cropped' ? 'active' : ''}`} onClick={() => setImageMode('cropped')}>
-                {t('nameCard.cropped', { defaultValue: '已裁剪' })}
-              </div>
-            </div>
             <div className="nc-image-frame">
-              {(imageMode === 'original' ? card.image_url : card.cropped_image_url) ? (
-                <img src={imageMode === 'original' ? card.image_url : card.cropped_image_url} alt="" />
+              {(card.cropped_image_url || card.image_url) ? (
+                <img src={card.cropped_image_url || card.image_url} alt={form.name || ''} />
               ) : (
-                <div style={{ color: 'var(--color-text-secondary)', fontSize: 12 }}>
+                <div className="nc-image-empty">
                   {t('nameCard.imagePreview', { defaultValue: '名片圖片預覽' })}
                 </div>
               )}
-            </div>
-            <div className="nc-image-actions">
-              <button className="nx-btn nx-btn-secondary" style={{ flex: 1 }} onClick={handleRecrop}
-                title={t('nameCard.recrop', { defaultValue: '重新裁剪' })}
-                aria-label={t('nameCard.recrop', { defaultValue: '重新裁剪' })}>
-                <SvcIcon name="rotate-cw" size={13} /> <span className="nc-btn-label">{t('nameCard.recrop', { defaultValue: '重新裁剪' })}</span>
-              </button>
-              <button className="nx-btn nx-btn-secondary" style={{ flex: 1 }}
-                onClick={() => window.open(card.image_url, '_blank')}
-                title={t('nameCard.downloadOriginal', { defaultValue: '下載原圖' })}
-                aria-label={t('nameCard.downloadOriginal', { defaultValue: '下載原圖' })}>
-                <SvcIcon name="download" size={13} /> <span className="nc-btn-label">{t('nameCard.downloadOriginal', { defaultValue: '下載原圖' })}</span>
-              </button>
             </div>
 
             {/* ═══ Contact linking box ═══ */}
@@ -219,8 +226,26 @@ export function NameCardDetailModal({ card, onClose, onSaved, onDeleted }: Props
                 <input className="input-field" value={form.email} onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))} />
               </div>
               <div className="nx-field">
-                <label>{t('fields.phone', { defaultValue: '電話' })}</label>
-                <input className="input-field" value={form.phone} onChange={(e) => setForm(f => ({ ...f, phone: e.target.value }))} />
+                <label>{t('nameCard.fMobile', { defaultValue: '手機' })}</label>
+                <input className="input-field" value={form.mobile} onChange={(e) => setForm(f => ({ ...f, mobile: e.target.value }))} />
+              </div>
+            </div>
+            <div className="nc-detail-field-row">
+              <div className="nx-field" style={{ flex: 1 }}>
+                <label>{t('nameCard.fOfficePhone', { defaultValue: '公司電話' })}</label>
+                <input className="input-field" value={form.office_phone} onChange={(e) => setForm(f => ({ ...f, office_phone: e.target.value }))} />
+              </div>
+            </div>
+            <div className="nc-detail-field-row">
+              <div className="nx-field" style={{ flex: 1 }}>
+                <label>{t('nameCard.fFax', { defaultValue: '傳真' })}</label>
+                <input className="input-field" value={form.fax} onChange={(e) => setForm(f => ({ ...f, fax: e.target.value }))} />
+              </div>
+            </div>
+            <div className="nc-detail-field-row">
+              <div className="nx-field" style={{ flex: 1 }}>
+                <label>{t('nameCard.fAddress', { defaultValue: '公司地址' })}</label>
+                <input className="input-field" value={form.address} onChange={(e) => setForm(f => ({ ...f, address: e.target.value }))} />
               </div>
             </div>
             <div className="nc-detail-field-row">
@@ -254,31 +279,56 @@ export function NameCardDetailModal({ card, onClose, onSaved, onDeleted }: Props
               </div>
             </div>
 
-            {/* ═══ AI confidence indicator ═══ */}
-            {card.field_confidence && (
-              <div style={{
-                marginTop: 16, padding: 12, borderRadius: 10,
-                background: 'rgba(124,92,252,.06)', border: '1px solid rgba(124,92,252,.2)',
-                fontSize: 12, color: 'var(--color-text-primary)',
-              }}>
-                {card.duplicate_candidate?.reason ? ` — ${card.duplicate_candidate.reason}` : ''}
-              </div>
-            )}
+            {/* 2026-09-15 Terrence：「add tag 下有個紫色 area，請 remove」= 舊版嘅 AI confidence 格
+                （rgba(124,92,252,.06) 紫色框）。佢只重覆 compare 區已有嘅 reason，
+                而且冇 reason 時仲會出一個空紫盒 ⇒ 整個拆走。 */}
 
             {/* 2026-09-13 Terrence（v4 MD suggestion T5）：重複卡唔再淨係一句 reason —
                 逐個欄位同「現有聯絡人」並排對照，唔同嘅欄位高亮，一眼決定要唔要併入。
                 欄位同 backend review_candidates 嘅 shape 一一對應（crm.py:2209）。 */}
             {isPending && candRaw && (() => {
-              const FIELDS: { key: 'name' | 'company' | 'title' | 'phone' | 'email'; labelKey: string; zh: string }[] = [
+              const FIELDS: { key: 'name' | 'company' | 'title' | 'phone' | 'mobile' | 'office_phone' | 'fax' | 'address' | 'email'; labelKey: string; zh: string }[] = [
                 { key: 'name', labelKey: 'nameCard.fName', zh: '姓名' },
                 { key: 'company', labelKey: 'nameCard.fCompany', zh: '公司' },
                 { key: 'title', labelKey: 'nameCard.fTitle', zh: '職位' },
-                { key: 'phone', labelKey: 'nameCard.fPhone', zh: '電話' },
+                { key: 'mobile', labelKey: 'nameCard.fMobile', zh: '手機' },
+                { key: 'office_phone', labelKey: 'nameCard.fOfficePhone', zh: '公司電話' },
+                { key: 'fax', labelKey: 'nameCard.fFax', zh: '傳真' },
+                { key: 'address', labelKey: 'nameCard.fAddress', zh: '公司地址' },
                 { key: 'email', labelKey: 'nameCard.fEmail', zh: 'Email' },
               ]
               const norm = (v: any) => String(v ?? '').trim().toLowerCase().replace(/\s+/g, '')
+              // P0.5（2026-09-15，P仔 review）：冇時間軸 → 用戶判唔到邊條新。固定 MM-DD HH:mm，唔用 locale format。
+              const fmtTime = (v: any) => {
+                if (!v) return '—'
+                const d = new Date(v)
+                if (isNaN(d.getTime())) return '—'
+                const p = (n: number) => String(n).padStart(2, '0')
+                return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+              }
               return (
                 <div className="nc-cmp">
+                  {/* 2026-09-15 Terrence：「New and existing compares 頂要有 name card image preview」*/}
+                  <div className="nc-cmp-previews">
+                    <div className="nc-cmp-preview">
+                      <span className="nc-cmp-preview-cap">{t('nameCard.cmpNewCard', { defaultValue: '呢張新卡' })}</span>
+                      {(card.cropped_image_url || card.image_url) ? (
+                        <img src={card.cropped_image_url || card.image_url} alt="" />
+                      ) : (
+                        <div className="nc-cmp-preview-empty">{t('nameCard.noImage', { defaultValue: '冇圖' })}</div>
+                      )}
+                    </div>
+                    <div className="nc-cmp-preview">
+                      <span className="nc-cmp-preview-cap">
+                        {t('nameCard.cmpExisting', { defaultValue: '現有聯絡人' })}：{candName}
+                      </span>
+                      {(candRaw as any).image_url ? (
+                        <img src={(candRaw as any).image_url} alt="" />
+                      ) : (
+                        <div className="nc-cmp-preview-empty">{t('nameCard.noCardImage', { defaultValue: '冇名片圖' })}</div>
+                      )}
+                    </div>
+                  </div>
                   <div className="nc-cmp-row nc-cmp-head">
                     <span className="nc-cmp-label" />
                     <span className="nc-cmp-val">{t('nameCard.cmpNewCard', { defaultValue: '呢張新卡' })}</span>
@@ -299,27 +349,50 @@ export function NameCardDetailModal({ card, onClose, onSaved, onDeleted }: Props
                       </div>
                     )
                   })}
+                  {/* P0.5（2026-09-15，P仔 review）：新卡掃描時間 vs 現有聯絡人最後更新時間 */}
+                  <div className="nc-cmp-row">
+                    <span className="nc-cmp-label">{t('nameCard.cmpTime', { defaultValue: '時間' })}</span>
+                    <span className="nc-cmp-val">{fmtTime(card.created_at)}</span>
+                    <span className="nc-cmp-val">{fmtTime((candRaw as any).updated_at)}</span>
+                  </div>
                   {candRaw.reason && <div className="nc-cmp-reason">🤖 {candRaw.reason}</div>}
                 </div>
               )
             })()}
 
-            {/* WORKFLOW-2026-09: Pending area resolve — 併入現有 / 開新（換公司 versioning） */}
+            {/* 2026-09-15 Terrence spec：重複決定 = 3 個 object，每個寫明後果 */}
             {isPending && (
               <div className="nc-resolve-bar">
                 <div className="nc-resolve-title">
-                  📥 {t('nameCard.pendingResolveTitle', { defaultValue: 'Pending 卡 — 同現有聯絡人重複，決定：' })}
+                  📥 {t('nameCard.pendingResolveTitle', { defaultValue: '發現重複 — 決定：' })}
                 </div>
                 <div className="nc-resolve-actions">
-                  <button type="button" className="nx-btn nx-btn-secondary" style={{ flex: 1 }}
-                    onClick={() => handleResolve('merge')} disabled={resolving}>
+                  <button type="button" className="nx-btn nx-btn-primary"
+                    onClick={() => handleResolve('replace')} disabled={resolving}>
                     <SvcIcon name="merge" size={13} />
-                    {t('nameCard.mergeInto', { defaultValue: '併入' })} {candName}
+                    <span className="nc-btn-label">
+                      {t('nameCard.replaceExisting', { defaultValue: '取代現有' })}
+                      {candName ? `（${candName}）` : ''}
+                    </span>
+                    <span className="nc-resolve-sub">
+                      {t('nameCard.replaceExistingSub', { defaultValue: '現有資料自動存入紀錄（history），聯絡人狀態同步更新' })}
+                    </span>
                   </button>
-                  <button type="button" className="nx-btn nx-btn-primary" style={{ flex: 1 }}
+                  <button type="button" className="nx-btn nx-btn-secondary"
                     onClick={() => handleResolve('separate')} disabled={resolving}>
                     <SvcIcon name="user-plus" size={13} />
-                    {t('nameCard.separateNew', { defaultValue: '開新聯絡人（舊卡 keep versioning）' })}
+                    <span className="nc-btn-label">{t('nameCard.createNew', { defaultValue: '開新記錄' })}</span>
+                    <span className="nc-resolve-sub">
+                      {t('nameCard.createNewSub', { defaultValue: '唔取代現有，以新記錄形式並存' })}
+                    </span>
+                  </button>
+                  <button type="button" className="nx-btn nc-btn-danger-ghost"
+                    onClick={handleDiscard} disabled={resolving}>
+                    <SvcIcon name="trash-2" size={13} />
+                    <span className="nc-btn-label">{t('nameCard.discardNew', { defaultValue: '刪除新卡' })}</span>
+                    <span className="nc-resolve-sub">
+                      {t('nameCard.discardNewSub', { defaultValue: '刪除新記錄，唔會覆蓋現有' })}
+                    </span>
                   </button>
                 </div>
               </div>

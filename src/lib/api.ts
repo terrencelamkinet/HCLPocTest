@@ -1,94 +1,103 @@
 /**
  * Penguin CRM API Client
- * 
- * Fetch wrapper with JWT auto-attach, token refresh on 401,
- * and typed response helpers.
+ *
+ * Session 授權由 **httpOnly cookie** 帶（2026-09-15 SAST，對應 AppScan
+ * 「Web, Local Storage Insecure」finding）。前端唔會再接觸 access/refresh token：
+ *
+ *   - 之前：`localStorage['nexus_crm_auth']` 存 access_token + refresh_token
+ *     → 任何 XSS 都可以一次過偷走 24 小時有效嘅 token。
+ *   - 現在：cookie（HttpOnly + SameSite=Lax + Secure）由瀏覽器自動帶，JS 讀唔到。
+ *     localStorage 只留一個**非敏感提示**（email + 提示用到期時間），令 UI 可以即刻
+ *     render，真正嘅授權判斷一律由後端 cookie 決定（401 → refresh → 或者去 sign-in）。
+ *
+ * 同源：API 同 SPA 同一個 origin（生產 nginx proxy、dev Vite proxy），所以每次
+ * fetch 都用 `credentials: 'include'`。
  */
 
 const API_BASE = ''; // Same-origin via Vite proxy (/api/* → :8001)
 
+/** 舊 key（≤v7.88.8）：入面有真 token，登入／登出時一定要清走。 */
+const LEGACY_AUTH_KEY = 'nexus_crm_auth';
+const SESSION_KEY = 'nexus_session';
+
 // ---------------------------------------------------------------------------
-// Token helpers
+// Session hint（非敏感）
 // ---------------------------------------------------------------------------
 
-export interface StoredAuth {
-  access_token: string;
-  refresh_token: string;
+/** localStorage 只存呢啲：冇 token、冇 secret，唔可以當授權憑證。 */
+export interface StoredSession {
   email: string;
-  expires: number;        // access_token expiry (epoch ms)
-  refresh_expires: number; // refresh_token expiry (epoch ms)
+  /** 提示用（UI 早 refresh）；真正授權由 cookie 決定。 */
+  expires: number;
 }
 
-const AUTH_KEY = 'nexus_crm_auth';
-
-export function getStoredAuth(): StoredAuth | null {
+export function getSession(): StoredSession | null {
   try {
-    const raw = localStorage.getItem(AUTH_KEY);
+    const raw = localStorage.getItem(SESSION_KEY);
     if (!raw) return null;
-    return JSON.parse(raw) as StoredAuth;
+    const parsed = JSON.parse(raw) as StoredSession;
+    return parsed && typeof parsed.email === 'string' ? parsed : null;
   } catch {
     return null;
   }
 }
 
-export function storeAuth(
-  token: string,
-  email: string,
-  refreshToken: string = '',
-): void {
-  const expires = Date.now() + 1439 * 60 * 1000; // ~24h minus 1min buffer
-  const refreshExpires = Date.now() + 22 * 60 * 60 * 1000; // ~22h (1d refresh - 2h buffer, unchanged)
-  const existing = getStoredAuth();
-  localStorage.setItem(
-    AUTH_KEY,
-    JSON.stringify({
-      access_token: token,
-      refresh_token: refreshToken || existing?.refresh_token || '',
-      email,
-      expires,
-      refresh_expires: refreshExpires,
-    }),
-  );
+export function storeSession(email: string): void {
+  try {
+    localStorage.setItem(
+      SESSION_KEY,
+      JSON.stringify({ email, expires: Date.now() + 1439 * 60 * 1000 }),
+    );
+    // 順手清走舊版遺留嘅 token（升級後第一次登入就會清到）
+    localStorage.removeItem(LEGACY_AUTH_KEY);
+  } catch {
+    /* localStorage 唔可用（私隱模式）— session hint 唔係必需 */
+  }
 }
 
 export function clearAuth(): void {
-  localStorage.removeItem(AUTH_KEY);
+  try {
+    localStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(LEGACY_AUTH_KEY);
+  } catch {
+    /* ignore */
+  }
 }
 
+/** 有冇 session hint。真正嘅 401 由 api() 統一處理（refresh → sign-in）。 */
 export function isAuthenticated(): boolean {
-  const auth = getStoredAuth();
-  if (!auth || !auth.access_token) return false;
-  // Check both access_token AND refresh_token viability
-  if (Date.now() < auth.expires) return true; // access_token still valid
-  if (auth.refresh_token && Date.now() < auth.refresh_expires) return true; // can refresh
-  return false;
+  return getSession() !== null;
 }
 
 // ---------------------------------------------------------------------------
-// Token refresh
+// Session refresh（cookie-based，冇 token 喺 JS）
 // ---------------------------------------------------------------------------
 
 let refreshing: Promise<boolean> | null = null;
 
-async function refreshAccessToken(): Promise<boolean> {
-  const auth = getStoredAuth();
-  if (!auth?.refresh_token) return false;
-  if (Date.now() >= auth.refresh_expires) return false;
-
-  try {
-    const res = await fetch(`${API_BASE}/api/v1/auth/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refresh_token: auth.refresh_token }),
-    });
-    if (!res.ok) return false;
-    const body = await res.json();
-    // Update stored tokens — keep same refresh_token unless a new one is returned
-    storeAuth(body.access_token, auth.email, body.refresh_token || auth.refresh_token);
-    return true;
-  } catch {
-    return false;
+/** POST /auth/refresh — refresh token 由 cookie 帶（body 留空，向後兼容）。 */
+export function refreshSession(): Promise<boolean> {
+  if (!refreshing) {
+    refreshing = (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/auth/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{}',
+          credentials: 'include',
+        });
+        return res.ok;
+      } catch {
+        return false;
+      }
+    })();
+    // 清 dedupe 鎖（唔阻住 caller 拎結果）
+    refreshing.then(
+      () => { refreshing = null; },
+      () => { refreshing = null; },
+    );
   }
+  return refreshing;
 }
 
 // ---------------------------------------------------------------------------
@@ -140,22 +149,20 @@ export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f
 // Generic fetch
 // ---------------------------------------------------------------------------
 
+/** 將 401 轉去 /sign-in（清 hint + 唔好喺 sign-in 頁再跳）。 */
+function redirectToSignIn(): void {
+  clearAuth();
+  const currentPath = window.location.pathname;
+  if (!currentPath.startsWith('/sign-in')) {
+    window.location.href = '/sign-in';
+  }
+}
+
 export async function api<T = any>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
-  // PRE-EMPTIVE REFRESH: if token expires within 2 minutes, refresh early
-  // This prevents the "bunch of parallel calls all hit expiry" scenario
-  const preAuth = getStoredAuth();
-  if (preAuth?.refresh_token && preAuth.expires && Date.now() >= preAuth.expires - 120_000) {
-    if (!refreshing) {
-      refreshing = refreshAccessToken().finally(() => { refreshing = null; });
-    }
-    await refreshing;
-  }
-
   const doFetch = async (): Promise<{ res: Response; body: any }> => {
-    const auth = getStoredAuth();
     const isForm = options.body instanceof FormData;
     const headers: Record<string, string> = {
       // JSON default, but skip Content-Type for FormData (browser sets boundary)
@@ -163,37 +170,29 @@ export async function api<T = any>(
       ...(options.headers as Record<string, string>),
     };
 
-    if (auth?.access_token) {
-      headers['Authorization'] = `Bearer ${auth.access_token}`;
-    }
-
-    const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+    // 冇 Authorization header：session 喺 httpOnly cookie，由 browser 自動帶
+    const res = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers,
+      credentials: 'include',
+    });
     const body = res.status === 204 ? undefined : await res.json().catch(() => ({}));
     return { res, body };
   };
 
   let { res, body } = await doFetch();
 
-  // On 401, try refreshing the token once (deduplicates concurrent attempts)
+  // On 401, try refreshing the session once (deduplicates concurrent attempts)
   if (res.status === 401) {
-    if (!refreshing) {
-      refreshing = refreshAccessToken().finally(() => { refreshing = null; });
-    }
-    const refreshed = await refreshing;
-
+    const refreshed = await refreshSession();
     if (refreshed) {
-      // Retry the original request with the new token
       ({ res, body } = await doFetch());
     }
   }
 
-  // If still 401 after refresh attempt (or refresh failed), redirect to sign-in
+  // If still 401 after refresh attempt, redirect to sign-in
   if (res.status === 401) {
-    clearAuth();
-    const currentPath = window.location.pathname;
-    if (!currentPath.startsWith('/sign-in')) {
-      window.location.href = '/sign-in';
-    }
+    redirectToSignIn();
     throw new ApiError(401, { detail: 'Unauthorized' });
   }
 
@@ -228,7 +227,7 @@ export const apiClient = {
     api<T>(withQuery(path, opts?.params), opts?.signal ? { signal: opts.signal } : {}),
   post: <T = any>(path: string, data?: any) =>
     api<T>(path, { method: 'POST', body: data ? JSON.stringify(data) : undefined }),
-  /** POST multipart/form-data (skips JSON stringify; attaches auth header like uploadFile).
+  /** POST multipart/form-data (skips JSON stringify; cookie auth attached automatically).
    *  2026-09-13：加可選 signal（v4 MD suggestion T2 — 批量上載「取消」要真 abort in-flight request）。 */
   postForm: <T = any>(path: string, formData: FormData, signal?: AbortSignal) =>
     api<T>(path, { method: 'POST', body: formData, ...(signal ? { signal } : {}) }),
@@ -240,22 +239,22 @@ export const apiClient = {
     api<T>(path, { method: 'DELETE' }),
 };
 
-/** Upload a file (multipart/form-data) with auth. Returns parsed JSON body. */
+/** Upload a file (multipart/form-data). Returns parsed JSON body. */
 export async function uploadFile<T = any>(path: string, file: File, extraFields?: Record<string, string>): Promise<T> {
-  const auth = getStoredAuth();
   const form = new FormData();
   form.append('file', file);
   if (extraFields) {
     for (const [k, v] of Object.entries(extraFields)) form.append(k, v);
   }
-  const headers: Record<string, string> = {};
-  if (auth?.access_token) headers['Authorization'] = `Bearer ${auth.access_token}`;
-  const res = await fetch(`${API_BASE}${path}`, { method: 'POST', headers, body: form });
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'POST',
+    body: form,
+    credentials: 'include',
+  });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
     if (res.status === 401) {
-      clearAuth();
-      window.location.href = '/sign-in';
+      redirectToSignIn();
     }
     throw new ApiError(res.status, body);
   }
@@ -263,7 +262,7 @@ export async function uploadFile<T = any>(path: string, file: File, extraFields?
 }
 
 // ---------------------------------------------------------------------------
-// Auth-specific endpoints (no token required, or custom handling)
+// Auth-specific endpoints
 // ---------------------------------------------------------------------------
 
 export interface LoginResponse {
@@ -280,6 +279,7 @@ export async function login(email: string, password: string): Promise<LoginRespo
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
+    credentials: 'include',
   });
   const body = await res.json();
   if (!res.ok) throw new ApiError(res.status, body);
@@ -291,6 +291,7 @@ export async function signup(email: string, password: string, display_name: stri
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password, display_name }),
+    credentials: 'include',
   });
   const body = await res.json();
   if (!res.ok) throw new ApiError(res.status, body);
@@ -302,6 +303,7 @@ export async function forgotPassword(email: string): Promise<{ message: string }
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email }),
+    credentials: 'include',
   });
   const body = await res.json();
   if (!res.ok) throw new ApiError(res.status, body);
@@ -313,6 +315,7 @@ export async function resetPassword(token: string, password: string): Promise<{ 
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ token, password }),
+    credentials: 'include',
   });
   const body = await res.json();
   if (!res.ok) throw new ApiError(res.status, body);
@@ -331,4 +334,19 @@ export async function verifyMfa(email: string, otp_code: string): Promise<LoginR
     method: 'POST',
     body: JSON.stringify({ email, otp_code }),
   });
+}
+
+/** 登出：server 清 cookie + revoke refresh session（冇 token 要傳）。 */
+export async function logoutSession(): Promise<void> {
+  try {
+    await fetch(`${API_BASE}/api/v1/auth/logout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+      credentials: 'include',
+    });
+  } catch {
+    /* 網絡問題都好，前端一定要清 hint */
+  }
+  clearAuth();
 }

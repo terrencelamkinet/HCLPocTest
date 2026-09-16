@@ -8,7 +8,8 @@ import requests, psycopg2
 
 NOTION_KEY = open(os.path.expanduser("~/.config/notion/api_key")).read().strip()
 HEADERS = {"Authorization": f"Bearer {NOTION_KEY}", "Notion-Version": "2022-06-28", "Content-Type": "application/json"}
-PG_DSN = "host=127.0.0.1 port=5432 dbname=nexus_crm user=gg_fighter password=F5xbTAzODUVEU4KDDIP"
+from _dbcred import dsn_kwargs as _dsn  # noqa: E402  (2026-09-15 SAST：唔再 hardcode)
+PG_DSN = _dsn()
 
 DB_IDS = {
     "companies": "2a2783d5-93e7-81fb-84a2-e3cd479bd1e7",

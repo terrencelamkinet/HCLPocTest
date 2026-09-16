@@ -28,7 +28,6 @@ const touchpointConfig: ResourceConfig = {
     /* 2026-09-11: format 'datetime' adds the TIME picker — the field was date-only,
        so a touchpoint could not record WHEN it happened (「During 沒有時間選擇」). */
     { key: 'date',           label: 'Date',         type: 'date',     format: 'datetime', sortable: true, visibleByDefault: true },
-    { key: 'duration_minutes', label: 'Duration',   type: 'number',   format: 'hours', visibleByDefault: false },
     { key: 'location',       label: 'Location',     type: 'text',     visibleByDefault: false },
     { key: 'participants',  label: 'Contact',    type: 'relation', sortable: false, filterable: true, visibleByDefault: true,
       relation: { resource: 'contacts', multiple: true, displayField: 'name' } },
@@ -50,7 +49,7 @@ const touchpointConfig: ResourceConfig = {
 
   detailTabs: [
     { id: 'details', label: 'Details', fields: [
-      'title', 'type', 'description', 'date', 'duration_minutes',
+      'title', 'type', 'description', 'date',
       'location', 'participants', 'companies', 'created_at',
     ]},
     { id: 'timeline', label: 'Timeline' },

@@ -434,6 +434,9 @@ class CustomFieldValue(Base):
     tenant_id = Column(UUID(as_uuid=True), nullable=False)
     definition_id = Column(UUID(as_uuid=True), ForeignKey("nexus_crm.custom_field_definitions.id", ondelete="CASCADE"), nullable=False)
     record_id = Column(UUID(as_uuid=True), nullable=False)
+    # 2026-09-16（KB-047）：DB 呢條 column 係 NOT NULL，但 model 一直冇 → ORM 寫入
+    # 一定 NotNullViolation。由 definition 推導（見 upsert endpoint）。
+    module_name = Column(String(50), nullable=False)
     value_text = Column(Text)
     value_number = Column(Numeric(18, 4))
     value_boolean = Column(Boolean)

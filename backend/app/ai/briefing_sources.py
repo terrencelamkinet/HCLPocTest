@@ -558,7 +558,7 @@ async def invoice_reminders(ctx: AISessionContext, db: AsyncSession, options: di
 # Batch B/C — external API + new-table sources (2026-08-01)
 # ═══════════════════════════════════════════════════════════════
 import asyncio
-import xml.etree.ElementTree as ET
+from defusedxml import ElementTree as ET  # 2026-09-15 SAST：defusedxml 擋 XXE / billion laughs（原本 raw xml.etree）
 
 import httpx
 

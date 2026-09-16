@@ -9,11 +9,24 @@ const svcModules = import.meta.glob('../assets/svc-icons/*.svg', {
 
 // name -> svg inner content（strip <svg> wrapper + 將 hardcoded stroke 換成 currentColor）
 const ICON_CACHE: Record<string, string> = {};
+
+/* 2026-09-15 SAST（AppScan：dangerouslySetInnerHTML in SvcIcon）—
+   呢個 innerHTML 唯一來源係 repo 內嘅 .svg 檔 + pcrmIcons.ts（冇用戶輸入路徑），
+   但仍然喺 ingest 時清走 script / foreignObject / on* handler，令呢個 sink 就算
+   將來有人改到 icon 來源都唔會變成 XSS 出口。 */
+function stripDangerousSvg(svg: string): string {
+  return svg
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<foreignObject[\s\S]*?<\/foreignObject>/gi, '')
+    .replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+    .replace(/(href|xlink:href)\s*=\s*("|')\s*javascript:[^"']*\2/gi, '');
+}
+
 const ingest = (name: string, raw: string) => {
-  const inner = raw
+  const inner = stripDangerousSvg(raw
     .replace(/<svg[^>]*>/, '')
     .replace(/<\/svg>/, '')
-    .replace(/stroke="#2563EB"/g, 'stroke="currentColor"');
+    .replace(/stroke="#2563EB"/g, 'stroke="currentColor"'));
   ICON_CACHE[name] = inner;
 };
 for (const [path, raw] of Object.entries(svcModules)) {

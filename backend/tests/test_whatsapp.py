@@ -18,8 +18,8 @@ KINETIX_TENANT = "00000000-0000-0000-0000-000000000001"
 ALT_TENANT = "00000000-0000-0000-0000-000000000002"
 TEST_USER = "9f3e7b11-e529-4cf8-82a6-2a62e4e5b643"
 ALT_USER = "aaaaaaaa-e529-4cf8-82a6-2a62e4e5bbbb"
-TEST_PHONE = "+85298765432"
-ALT_PHONE = "+85291234567"
+TEST_PHONE = "+85200000000"
+ALT_PHONE = "+85200000000"
 
 
 def _make_token(sub: str, tenant_id: str, email: str = "test@test.com") -> str:
@@ -33,12 +33,12 @@ def _make_token(sub: str, tenant_id: str, email: str = "test@test.com") -> str:
 
 
 @pytest.fixture
-def auth_headers():
+def auth_headers(seeded_test_tenants):
     return {"Authorization": f"Bearer {_make_token(TEST_USER, KINETIX_TENANT)}"}
 
 
 @pytest.fixture
-def alt_auth_headers():
+def alt_auth_headers(seeded_test_tenants):
     return {"Authorization": f"Bearer {_make_token(ALT_USER, ALT_TENANT, 'alt@test.com')}"}
 
 

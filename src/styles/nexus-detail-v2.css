@@ -195,12 +195,25 @@
   font-size: 13px; font-weight: 600; color: var(--color-text-secondary);
   margin-bottom: var(--space-4); letter-spacing: .02em;
 }
+/* ⚠️ minmax(0,1fr) 唔可以寫返 1fr — 1fr = minmax(auto,1fr)，
+   欄入面嘅 NexusEditor toolbar 會撐大 min-content，令兩欄唔等寬
+   （2026-09-16 實測 drawer：254px vs 235px）＋令 field 闊過容器（mobile 419px > 393px）。 */
 .nx-inline-edit-grid {
-  display: grid; grid-template-columns: 1fr; gap: var(--space-4);
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4);
+  min-width: 0;
 }
 @media (min-width: 768px) {
-  .nx-inline-edit-grid { grid-template-columns: 1fr 1fr; }
+  .nx-inline-edit-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* 2026-09-16 Terrence 報「edit page 走位了」：桌面版表單改成喺主內容欄原位 render。
+   .nx-inline-edit-panel 原本係「整頁最底嘅置中卡」，原位用嘅時候唔應該再置中／加邊距。 */
+.nx-inline-edit-inplace {
+  margin: 0;
+  max-width: none;
+  padding: var(--space-4) var(--space-5) var(--space-5);
+}
+.nx-inline-edit-inplace .nx-inline-edit-title { margin-bottom: var(--space-3); }
 
 /* ═══ Preview drawer V2 (DetailDrawerContent) — concise subset ═══ */
 .nx-drawer-v2 { padding: 16px 18px; }

@@ -138,7 +138,7 @@
     "proofLocalDesc": "電郵 + 密碼流程，直接存取工作區",
     "proofRecoveryTitle": "完整恢復",
     "proofRecoveryDesc": "建立帳戶、重設密碼，唔會卡死",
-    "badgeJwt": "JWT + refresh token 就緒",
+    "badgeJwt": "HttpOnly session cookie 就緒",
     "badgeMobile": "流動優先登入流程",
     "badgeWcag": "符合 WCAG 對比度",
     "errorLogin": "登入失敗",
@@ -1781,6 +1781,26 @@
     "details": "詳細資料…"
   },
   "nameCard": {
+    "fFax": "傳真",
+    "fAddress": "公司地址",
+    "fMobile": "手機",
+    "fOfficePhone": "公司電話",
+    "sectionTitle": "名片",
+    "zoom": "放大名片",
+    "currentCard": "目前",
+    "oldCard": "舊紀錄",
+    "tlAdded": "新增名片",
+    "tlUpdated": "更新名片",
+    "tlOldKept": "舊名片已保留 — 點擊放大對照",
+    "noCardImage": "冇名片圖",
+    "replaceExisting": "取代現有",
+    "replaceExistingSub": "現有資料自動存入紀錄（history），聯絡人狀態同步更新",
+    "createNew": "開新記錄",
+    "createNewSub": "唔取代現有，以新記錄形式並存",
+    "discardNew": "刪除新卡",
+    "discardNewSub": "刪除新記錄，唔會覆蓋現有",
+    "confirmDiscard": "刪除呢張新卡？現有聯絡人唔會被改動。",
+
     "title": "名片",
     "scannerTitle": "名片掃描器",
     "scannedCount": "已掃描 {{count}} 張",
@@ -1972,6 +1992,8 @@
     "contact": "聯絡人"
   },
   "editor": {
+    "formatTools": "格式",
+    "insertParagraph": "插入段落",
     "aiAssistant": "AI 助手",
     "deleteBlock": "刪除區塊",
     "add": "加入",
@@ -2233,5 +2255,36 @@
     "emptyListTitle": "未有筆記",
     "more": "更多",
     "moveTo": "移動到 Notebook"
+  },
+  "contact": {
+    "history": {
+      "title": "欄位變更紀錄",
+      "sub": "每次改動一行 — 時間、來源、舊值 → 新值",
+      "retracted": "已撤回",
+      "source": {
+        "card": "名片",
+        "manual": "人手",
+        "merge": "併入",
+        "import": "匯入",
+        "ai": "AI",
+        "legacy": "舊資料"
+      },
+      "field": {
+        "name": "姓名",
+        "email": "Email",
+        "phone": "電話",
+        "job_title": "職位",
+        "title": "職位",
+        "company_id": "公司",
+        "company": "公司",
+        "notes": "備註",
+        "tags": "標籤",
+        "address": "地址",
+        "status": "狀態",
+        "source": "來源",
+        "owner_id": "負責人",
+        "next_follow_up": "下次跟進"
+      }
+    }
   }
 }

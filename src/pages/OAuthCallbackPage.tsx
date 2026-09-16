@@ -21,28 +21,12 @@ export default function OAuthCallbackPage() {
 
     (async () => {
       try {
-        // Get JWT from localStorage (same origin as main app)
-        const authRaw = localStorage.getItem('nexus_crm_auth');
-        if (!authRaw) {
-          setStatus('error');
-          setErrorMsg('You are not signed in. Please sign in and try again.');
-          return;
-        }
-        const auth = JSON.parse(authRaw);
-        const token = auth.access_token;
-        if (!token) {
-          setStatus('error');
-          setErrorMsg('Session expired. Please sign in again.');
-          return;
-        }
-
-        // Call backend callback to exchange code for tokens
+        // 2026-09-15 SAST：session 喺 httpOnly cookie（唔再讀 localStorage token）。
+        // 冇 cookie 時 backend 會回 401，下面 catch 會顯示請重新登入。
         const res = await fetch(`${API_BASE}/api/v1/integrations/oauth/callback`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({ code, state }),
         });
 

@@ -87,39 +87,47 @@ def _mark_alerted() -> None:
         pass
 
 
-async def _summary(adb) -> dict:
-    """最近窗口嘅錯誤摘要（按路徑/類型）。"""
+async def _summary(adb, tenant_id: str | None = None) -> dict:
+    """最近窗口嘅錯誤摘要（按路徑/類型）。
+
+    2026-09-15：可選 tenant filter。生產 cron 唔傳（全局，行為不變）；test 傳自己
+    個 tenant，令結果唔會被其他 test 產生嘅錯誤污染（之前真係互相污染）。
+    """
+    where = "occurred_at > now() - make_interval(mins => :m)"
+    params: dict = {"m": WINDOW_MIN}
+    if tenant_id:
+        where += " AND tenant_id = :t"
+        params["t"] = str(tenant_id)
     rows = (
         await adb.execute(
-            text("""
+            text(f"""
                 SELECT path, error_type, status_code, count(*) AS hits
                 FROM nexus_ai.error_events
-                WHERE occurred_at > now() - make_interval(mins => :m)
+                WHERE {where}
                 GROUP BY 1, 2, 3
                 ORDER BY 4 DESC
                 LIMIT 5
             """),
-            {"m": WINDOW_MIN},
+            params,
         )
     ).mappings().all()
     total = (
         await adb.execute(
-            text("""
-                SELECT count(*) FROM nexus_ai.error_events
-                WHERE occurred_at > now() - make_interval(mins => :m)
-            """),
-            {"m": WINDOW_MIN},
+            text(f"SELECT count(*) FROM nexus_ai.error_events WHERE {where}"),
+            params,
         )
     ).scalar()
     return {"total": int(total or 0), "top": [dict(r) for r in rows]}
 
 
-async def check_and_alert() -> dict:
-    """檢查閾值 → 超標就通知 owner。回傳結果（供 test / log）。"""
+async def check_and_alert(tenant_id: str | None = None) -> dict:
+    """檢查閾值 → 超標就通知 owner。回傳結果（供 test / log）。
+    tenant_id: 只計某個 tenant 嘅錯誤（test 隔離用）；預設 None = 全局（生產行為）。
+    """
     from app.db_admin import _get_admin_sessionmaker
 
     async with _get_admin_sessionmaker()() as adb:
-        s = await _summary(adb)
+        s = await _summary(adb, tenant_id=tenant_id)
 
     result = {"total": s["total"], "threshold": THRESHOLD, "alerted": False, "skipped": None}
     if s["total"] < THRESHOLD:
@@ -159,7 +167,13 @@ async def check_and_alert() -> dict:
 
 
 async def run_retention(days: int = RETENTION_DAYS) -> int:
-    """清走舊 error_events（admin session，跨 tenant）。"""
+    """清走舊 error_events（admin session）+ 過期 OAuth state（app session）。
+
+    2026-09-15：OAuth state 一次性 + 15 分鐘 TTL（見 crm_integrations.oauth_callback）。
+    冇人 callback 嘅 state 會一直留低（實測累積 300+ row），順手清。1 日足夠 cover
+    任何仲進行緊嘅 flow。用 app session（nexus_oauth_states owner = gg_fighter）；
+    admin role 對呢張表只有 SELECT。
+    """
     from app.db_admin import _get_admin_sessionmaker
 
     async with _get_admin_sessionmaker()() as adb:
@@ -169,7 +183,22 @@ async def run_retention(days: int = RETENTION_DAYS) -> int:
         )
         await adb.commit()
         deleted = int(getattr(res, "rowcount", 0) or 0)
-    logger.info("error_events retention: deleted %s rows older than %s days", deleted, days)
+
+    from app.db import async_session
+
+    async with async_session() as s:
+        st = await s.execute(
+            text("DELETE FROM nexus_crm.nexus_oauth_states WHERE created_at < now() - interval '1 day'")
+        )
+        await s.commit()
+        states = int(getattr(st, "rowcount", 0) or 0)
+
+    logger.info(
+        "retention: error_events deleted %s rows older than %s days; oauth_states deleted %s rows older than 1 day",
+        deleted,
+        days,
+        states,
+    )
     return deleted
 
 

@@ -186,7 +186,7 @@ export const integrations: Integration[] = [
     isConnected: false,
     connectionMethod: 'url',
     connectSteps: [
-      'Enter your WhatsApp phone number (with country code, e.g. +85298765432)',
+      'Enter your WhatsApp phone number (with country code, e.g. +85200000000)',
       'You\'ll receive a 6-digit verification code via WhatsApp',
       'Enter the code to complete binding',
       'Start chatting with your AI assistant on WhatsApp!',

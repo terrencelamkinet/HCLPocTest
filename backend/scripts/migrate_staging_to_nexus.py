@@ -9,7 +9,8 @@ import json, os, sys, uuid
 import psycopg2
 from psycopg2.extras import execute_values
 
-PG_DSN = "host=127.0.0.1 port=5432 dbname=nexus_crm user=gg_fighter password=F5xbTAzODUVEU4KDDIP"
+from _dbcred import dsn_kwargs as _dsn  # noqa: E402  (2026-09-15 SAST：唔再 hardcode)
+PG_DSN = _dsn()
 TENANT_ID = "00000000-0000-0000-0000-000000000001"
 WORKSPACE_ID = "33a46d5e-46f5-48b5-921e-da5855d5a0b9"  # Kinetix Default Workspace
 

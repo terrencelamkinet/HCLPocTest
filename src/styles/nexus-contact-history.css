@@ -1,0 +1,99 @@
+/* ═══════════════════════════════════════════════════════════
+   nexus-contact-history.css — 欄位變更紀錄（contact_changes v1）
+   2026-09-15 Terrence + P仔 review
+
+   跟 NEXUS Design Guide 2026：8px grid、token 顏色、radius token、
+   H3 16px/600（≥1280px 18px/600）、mobile 單欄。
+   class 全部 cch- 前綴，唔會撞到其他 module。
+   ═══════════════════════════════════════════════════════════ */
+
+.cch-wrap { margin-top: var(--space-6); }
+.cch-head { display: flex; align-items: center; gap: var(--space-2); }
+.cch-title { font-size: 16px; line-height: 22px; font-weight: 600; color: var(--color-text-primary); margin: 0; }
+@media (min-width: 1280px) { .cch-title { font-size: 18px; line-height: 24px; } }
+.cch-count {
+  background: var(--color-surface-offset, #F1F5F9); color: var(--color-text-secondary);
+  font-size: 11px; font-weight: 700; border-radius: var(--radius-badge); padding: 1px 8px;
+}
+.cch-sub { font-size: 12px; color: var(--color-text-secondary); margin: 2px 0 var(--space-3); }
+
+.cch-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.cch-row {
+  border: 1px solid var(--color-border); border-radius: var(--radius-card);
+  padding: var(--space-3); background: var(--color-surface-elevated);
+}
+.cch-row.is-retracted { opacity: .6; }
+
+.cch-meta { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; margin-bottom: 4px; }
+.cch-time { font-size: 11.5px; color: var(--color-text-secondary); font-variant-numeric: tabular-nums; }
+.cch-badge {
+  font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: var(--radius-badge);
+  background: rgba(27, 59, 75, .08); color: var(--color-text-secondary);
+}
+.cch-badge.is-warn { background: rgba(245, 158, 11, .15); color: #b45309; }
+
+.cch-line { display: flex; align-items: baseline; gap: var(--space-2); flex-wrap: wrap; font-size: 13px; }
+.cch-field { font-weight: 600; color: var(--color-text-primary); min-width: 52px; }
+.cch-old { color: var(--color-text-secondary); text-decoration: line-through; word-break: break-word; }
+.cch-arrow { color: var(--color-text-faint, #94A3B8); }
+.cch-new { color: var(--color-text-primary); font-weight: 600; word-break: break-word; }
+.cch-empty { font-size: 13px; color: var(--color-text-secondary); }
+
+@media (max-width: 767px) {
+  /* mobile：欄位名獨佔一行，舊值 → 新值換行都唔會迫爆 */
+  .cch-line { font-size: 13.5px; line-height: 1.45; }
+  .cch-field { min-width: 0; flex-basis: 100%; }
+  .cch-wrap { margin-top: var(--space-5); }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   2026-09-15 Terrence spec（contact 頁名片區 + 放大檢視 + timeline 名片紀錄）
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── contact 側欄「名片」區（General Info 同 Ownership 中間）── */
+.cnc { display: flex; flex-wrap: wrap; gap: 10px; padding: 10px 12px 12px; }
+.cnc-item { margin: 0; display: flex; flex-direction: column; gap: 4px; width: calc(50% - 5px); }
+.cnc-thumb {
+  padding: 0; border: 1px solid var(--color-border); border-radius: var(--radius-card);
+  background: #fff; overflow: hidden; cursor: zoom-in; display: block; line-height: 0;
+}
+.cnc-thumb img { width: 100%; height: auto; display: block; }
+.cnc-none {
+  display: flex; align-items: center; justify-content: center; min-height: 60px;
+  color: var(--color-text-secondary);
+}
+.cnc-cap { display: flex; align-items: center; gap: 6px; font-size: 10.5px; color: var(--color-text-secondary); }
+.cnc-badge { background: rgba(27, 59, 75, .08); border-radius: var(--radius-badge); padding: 1px 6px; font-weight: 700; }
+.cnc-badge.is-current { background: rgba(15, 110, 106, .12); color: var(--color-primary); }
+
+/* ── timeline 名片紀錄（只有縮圖本身可 click 放大）── */
+.tl-thumb {
+  display: block; margin-top: 6px; width: 168px; max-width: 100%; height: auto;
+  border: 1px solid var(--color-border); border-radius: 8px; background: #fff; cursor: zoom-in;
+}
+
+/* ── 放大檢視（有放大動畫；Esc／點背景關閉）── */
+.nx-lightbox {
+  position: fixed; inset: 0; z-index: 1200; background: rgba(15, 17, 23, .72);
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+  animation: nx-lb-fade .16s ease-out;
+}
+.nx-lightbox-figure {
+  margin: 0; max-width: min(920px, 94vw); max-height: 88vh;
+  display: flex; flex-direction: column; gap: 8px;
+  animation: nx-lb-zoom .22s cubic-bezier(.22, 1, .36, 1);
+}
+.nx-lightbox-figure img {
+  width: 100%; height: auto; max-height: 82vh; object-fit: contain;
+  border-radius: 12px; background: #fff;
+}
+.nx-lightbox-figure figcaption { text-align: center; font-size: 12px; color: rgba(255, 255, 255, .85); }
+.nx-lightbox-x {
+  position: absolute; top: 16px; right: 16px; width: 44px; height: 44px; border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, .3); background: rgba(255, 255, 255, .12); color: #fff;
+  cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+}
+@keyframes nx-lb-fade { from { opacity: 0 } to { opacity: 1 } }
+@keyframes nx-lb-zoom { from { opacity: 0; transform: scale(.86) } to { opacity: 1; transform: scale(1) } }
+@media (prefers-reduced-motion: reduce) { .nx-lightbox, .nx-lightbox-figure { animation: none } }
+@media (max-width: 640px) { .cnc-item { width: 100% } .tl-thumb { width: 100% } }

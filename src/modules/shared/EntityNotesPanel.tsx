@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { apiClient } from '../../lib/api'
+import { sanitizeHtml } from '../../lib/sanitizeHtml'
 import NexusEditor from '../../components/editor/NexusEditor'
 import { extractRecordMentions } from '../../components/editor/RecordMention'
 
@@ -317,7 +318,8 @@ export default function EntityNotesPanel({ entityType, entityId, filterKey, comp
                 </div>
               </div>
               {n.content && (
-                <div className="nxe-rendered-content" dangerouslySetInnerHTML={{ __html: n.content }} />
+                /* 2026-09-15 SAST：dangerouslySetInnerHTML 前一律過 sanitizeHtml（nh3 對應前端層）*/
+                <div className="nxe-rendered-content" dangerouslySetInnerHTML={{ __html: sanitizeHtml(n.content) }} />
               )}
               {/* T3.3 — 規則比對建議連結 banner（一鍵連結 / 略過） */}
               {(linkSuggestions[n.id] || []).length > 0 && (

@@ -56,6 +56,10 @@ export interface SidebarField {
 export interface SidebarSection {
   title: string
   fields: SidebarField[]
+  /* 2026-09-15 Terrence：contact 頁要喺 General Info 同 Ownership 中間插「名片」
+     （有 preview + click 放大）——純 fields 表做唔到圖，所以加一個可選 content slot。
+     可選 = 其他 4 個 module 完全唔受影響。 */
+  content?: React.ReactNode
 }
 
 export interface DetailTab {
@@ -157,7 +161,9 @@ export function NexusDetailPageV2({
           <button type="button" className="edit-bar-btn" onClick={onCancelEdit} disabled={editSaving}>
             {t('common.cancel', { defaultValue: '取消' })}
           </button>
-          <span className="mobile-topbar-title">{t('mobile.editContact', { defaultValue: '編輯聯絡人' })}</span>
+          {/* 2026-09-16 Terrence：之前寫死「編輯聯絡人」⇒ touchpoint／task／project 全部錯 label。
+              mobile edit 係 full-screen（取消 | … | 儲存），中間用中性「編輯」永遠唔會錯。 */}
+          <span className="mobile-topbar-title">{t('common.editing', { defaultValue: '編輯' })}</span>
           <button type="button" className="edit-bar-btn edit-bar-save" onClick={onSaveEdit} disabled={!editDirty || editSaving}>
             {editSaving ? t('common.saving', { defaultValue: '儲存中…' }) : t('common.save', { defaultValue: '儲存' })}
           </button>
@@ -262,19 +268,29 @@ export function NexusDetailPageV2({
       {/* ═══ Body: Main Tabs + Sidebar ═══ */}
       <div className="detail-body">
         <div className="detail-main">
-          <div className="tabs">
-            {tabs.map(tb => (
-              <div
-                key={tb.key}
-                className={`tab ${activeTab === tb.key ? 'active' : ''}`}
-                onClick={() => setActiveTab(tb.key)}
-              >
-                {tb.label}
-                {tb.count != null && <span className="count">{tb.count}</span>}
+          {/* 2026-09-16 Terrence 報「edit page 走位了」：
+              桌面版之前係「唯讀主內容照留 + 表單 append 喺整頁最底」（實測 panel top 599，
+              要 scroll 400px 先見到表單）。改成編輯時表單就喺主內容欄原位出現，
+              tab 內容收起 —— 同 mobile（.edit-form-wrap）一致。 */}
+          {editMode && editForm && !isMobile ? (
+            <div className="nx-inline-edit-panel nx-inline-edit-inplace">{editForm}</div>
+          ) : (
+            <>
+              <div className="tabs">
+                {tabs.map(tb => (
+                  <div
+                    key={tb.key}
+                    className={`tab ${activeTab === tb.key ? 'active' : ''}`}
+                    onClick={() => setActiveTab(tb.key)}
+                  >
+                    {tb.label}
+                    {tb.count != null && <span className="count">{tb.count}</span>}
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-          {activeTabDef?.render()}
+              {activeTabDef?.render()}
+            </>
+          )}
         </div>
 
         <div className="detail-sidebar">
@@ -309,6 +325,7 @@ export function NexusDetailPageV2({
                   </span>
                 </div>
               ))}
+              {!collapsedSections[sec.title] && sec.content}
             </div>
           ))}
 
@@ -375,13 +392,18 @@ export function NexusDetailPageV2({
 
 export interface TimelineEvent {
   id: string
-  icon: string
+  /* string（emoji）或者 SvcIcon 呢類 ReactNode 都可以 */
+  icon: string | React.ReactNode
   title: string
   meta: string
   body?: string
   aiDetected?: boolean
   aiLabel?: string
   sortKey: string
+  /* 2026-09-15 Terrence：contact timeline 要有名片紀錄（新卡／舊卡都可以 click 放大）。
+     兩者都係可選 ⇒ 其他 module 嘅 event 完全唔受影響。 */
+  imageUrl?: string
+  onClick?: () => void
 }
 
 export function UnifiedTimeline({ events }: { events: TimelineEvent[] }) {
@@ -403,6 +425,8 @@ export function UnifiedTimeline({ events }: { events: TimelineEvent[] }) {
             <div className="tl-title">{ev.title}</div>
             <div className="tl-meta">{ev.meta}</div>
             {ev.body && <div className="tl-meta">{ev.body}</div>}
+            {/* 只有圖本身可 click 放大 —— 成行唔可以 click（Terrence 2026-09-15） */}
+            {ev.imageUrl && <img className="tl-thumb" src={ev.imageUrl} alt="" loading="lazy" onClick={ev.onClick} />}
             {ev.aiDetected && <span className="tl-tag ai"><SvcIcon name="sparkles" size={10} /> {ev.aiLabel || 'AI 自動偵測'}</span>}
           </div>
         </div>

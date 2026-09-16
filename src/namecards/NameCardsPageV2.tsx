@@ -303,6 +303,20 @@ export default function NameCardsPageV2() {
                           <div className="nc-pending-cand">
                             {t('nameCard.dupSuggest', { defaultValue: '建議併入' })}：{cand.name}
                             {cand.confidence ? `（${Math.round(Number(cand.confidence) * 100)}%）` : ''}
+                            {/* P1（2026-09-15，P仔 review）：一行差異摘要 — 唔洗逐張開先睇到邊度唔同 */}
+                            <span className="nc-pending-diff">
+                              {' · '}
+                              {(() => {
+                                const eq = (a: any, b: any) =>
+                                  String(a ?? '').trim().toLowerCase().replace(/\s+/g, '') ===
+                                  String(b ?? '').trim().toLowerCase().replace(/\s+/g, '')
+                                const newCo = String(pd.company ?? '').trim()
+                                const oldCo = String(cand.company ?? '').trim()
+                                const co = !oldCo && newCo ? '公司：只有新卡有'
+                                  : (eq(newCo, oldCo) ? '公司 同' : '公司 唔同')
+                                return [eq(pd.email, cand.email) ? 'Email 同' : 'Email 唔同', co].join('｜')
+                              })()}
+                            </span>
                           </div>
                         )}
                       </div>

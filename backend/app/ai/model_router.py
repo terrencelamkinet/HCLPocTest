@@ -129,7 +129,8 @@ async def resolve_model_selection(
         fallback_model=fb_model,
         profile_key=row[0],
     )
-    log.info("model profile resolved: key=%s → %s", sel.profile_key, sel.describe())
+    # 2026-09-15 SAST：每 request 打 profile 細節係噪音（AppScan: log leakage）→ debug
+    log.debug("model profile resolved: key=%s → %s", sel.profile_key, sel.describe())
     await _cache.set_json(ckey, _selection_to_payload(sel))
     return sel
 

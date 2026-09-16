@@ -11,6 +11,7 @@ from app.db import async_session
 # B 類: tenant data tables missing RLS (bootstrap tables EXCLUDED — see KB)
 TENANT_DATA_TABLES = [
     "ai_agent_log",
+    "contact_changes",
     "dashboard_layouts",
     "departments",
     "im_delivery_prefs",

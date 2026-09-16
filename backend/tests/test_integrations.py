@@ -24,6 +24,12 @@ ALT_USER = "aaaaaaaa-e529-4cf8-82a6-2a62e4e5bbbb"
 TEST_PROVIDER = "google_calendar"
 TEST_PROVIDER_DISPLAY = "Google Calendar"
 
+# Placeholder-path provider（crm_integrations._TOKEN_ENDPOINTS 冇佢）：用嚟測「完整
+# OAuth 連線成功」流程。google / microsoft 系有真 token endpoint，fake code 必定被
+# provider 拒（502），所以佢哋只可以做 graceful-failure 測試，唔可以做 happy path。
+CONNECT_PROVIDER = "notion"
+CONNECT_PROVIDER_DISPLAY = "Notion"
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -41,28 +47,83 @@ def _make_token(sub: str, tenant_id: str, email: str = "test@test.com", role: st
 
 
 @pytest.fixture
-def auth_headers():
+def auth_headers(seeded_test_tenants):
     return {"Authorization": f"Bearer {_make_token(TEST_USER, KINETIX_TENANT)}"}
 
 
 @pytest.fixture
-def alt_auth_headers():
+def alt_auth_headers(seeded_test_tenants):
     """Different tenant, different user."""
     return {"Authorization": f"Bearer {_make_token(ALT_USER, ALT_TENANT, 'alt@test.com')}"}
 
 
+# Providers 分兩類（睇 crm_integrations._TOKEN_ENDPOINTS）：
+#   EXCHANGE_PROVIDERS    → 有真 token endpoint；fake code 被 provider 拒 → 502（正確行為）
+#   PLACEHOLDER_PROVIDERS → 未有真 endpoint；callback 直接落 placeholder token → 200
+# 2026-09-15：原本呢批 test 當所有 provider 都回 placeholder，所以一直紅（502 != 200）。
+EXCHANGE_PROVIDERS = [
+    "google_calendar",
+    "gmail",
+    "google_drive",
+    "outlook_calendar",
+    "outlook_mail",
+]
+PLACEHOLDER_PROVIDERS = [
+    "slack",
+    "zoom",
+    "whatsapp",
+    "teams",
+    "dropbox",
+    "onedrive",
+    "linkedin",
+    "facebook",
+    "notion",
+    "stripe",
+    "quickbooks",
+    "mailchimp",
+    "hubspot",
+]
+
+
+async def _oauth_connect(client: httpx.AsyncClient, headers: dict, provider: str) -> dict:
+    """行一次 start → callback，回 integration record（assert 全程 200）。"""
+    start = await client.post(
+        f"{BACKEND_URL}/api/v1/integrations/oauth/start",
+        headers=headers,
+        json={"provider": provider},
+    )
+    assert start.status_code == 200, f"oauth/start {provider} → {start.status_code}"
+    state = start.json()["state"]
+    cb = await client.post(
+        f"{BACKEND_URL}/api/v1/integrations/oauth/callback",
+        headers=headers,
+        json={"code": f"code_{provider}", "state": state},
+    )
+    assert cb.status_code == 200, f"oauth/callback {provider} → {cb.status_code} {cb.text[:120]}"
+    return cb.json()
+
+
 @pytest.fixture(autouse=True)
 async def cleanup_integrations():
-    """Clean up all test integrations before each test so tests don't leak."""
+    """每個 test 前後都清走本 tenant 嘅 integration，確保 test 唔留殘留。
+
+    2026-09-15：之前只喺 test 之前清 → 最後一個 test 留低嘅 row 會殘留 DB。
+    """
+    await _purge_test_integrations()
+    yield
+    await _purge_test_integrations()
+
+
+async def _purge_test_integrations() -> None:
     async with httpx.AsyncClient() as client:
         token = _make_token(TEST_USER, KINETIX_TENANT)
         headers = {"Authorization": f"Bearer {token}"}
-        # List current integrations
         resp = await client.get(f"{BACKEND_URL}/api/v1/integrations", headers=headers)
         if resp.status_code == 200:
             for item in resp.json():
-                await client.delete(f"{BACKEND_URL}/api/v1/integrations/{item['id']}", headers=headers)
-    yield
+                await client.delete(
+                    f"{BACKEND_URL}/api/v1/integrations/{item['id']}", headers=headers
+                )
 
 
 # ===========================================================================
@@ -197,29 +258,17 @@ class TestOAuthComplete:
         assert resp.status_code == 400
 
     async def test_full_oauth_flow(self, auth_headers):
-        """Complete OAuth flow: start → callback → integration created."""
-        async with httpx.AsyncClient() as client:
-            # Step 1: Start OAuth
-            start_resp = await client.post(
-                f"{BACKEND_URL}/api/v1/integrations/oauth/start",
-                headers=auth_headers,
-                json={"provider": TEST_PROVIDER},
-            )
-        assert start_resp.status_code == 200
-        start_data = start_resp.json()
-        state = start_data["state"]
+        """完整 OAuth 流程：start → callback → integration 建立（placeholder provider）。
 
-        # Step 2: Complete OAuth (simulate provider callback)
+        2026-09-15：原本用 google_calendar，但 google 有真 token endpoint，
+        fake code 會被拒 → 502。改用 NOTION（未配置真 endpoint，走 placeholder 分支），
+        呢個 flow 先真正測到「callback 成功建立 integration + tenant/user 綁定 + 列表可見」。
+        """
         async with httpx.AsyncClient() as client:
-            cb_resp = await client.post(
-                f"{BACKEND_URL}/api/v1/integrations/oauth/callback",
-                headers=auth_headers,
-                json={"code": "auth_code_abc", "state": state},
-            )
-        assert cb_resp.status_code == 200
-        integration = cb_resp.json()
-        assert integration["provider"] == TEST_PROVIDER
-        assert integration["provider_display"] == TEST_PROVIDER_DISPLAY
+            integration = await _oauth_connect(client, auth_headers, CONNECT_PROVIDER)
+
+        assert integration["provider"] == CONNECT_PROVIDER
+        assert integration["provider_display"] == CONNECT_PROVIDER_DISPLAY
         assert integration["status"] == "active"
         assert integration["tenant_id"] == KINETIX_TENANT
         assert integration["user_id"] == TEST_USER
@@ -237,54 +286,81 @@ class TestOAuthComplete:
         assert list_resp.status_code == 200
         items = list_resp.json()
         assert len(items) == 1
-        assert items[0]["provider"] == TEST_PROVIDER
+        assert items[0]["provider"] == CONNECT_PROVIDER
 
-        # Store integration ID for later tests
         return integration["id"]
 
-    async def test_full_flow_with_all_providers(self, auth_headers):
-        """Test OAuth flow for each known provider type."""
-        providers = [
-            "google_calendar", "outlook_calendar", "gmail", "outlook_mail",
-            "slack", "zoom", "whatsapp", "teams",
-            "google_drive", "dropbox", "onedrive",
-            "linkedin", "facebook",
-            "notion", "stripe", "quickbooks", "mailchimp", "hubspot",
-        ]
-        created_ids = []
+    async def test_callback_exchange_provider_error_is_graceful(self, auth_headers):
+        """有真 token endpoint 嘅 provider：provider 拒絕 fake code 時要 502，
+        而且**唔可以**留低任何 integration row（唔可以有半連線狀態）。
 
+        2026-09-15 新增：原本冇任何測試蓋住呢條 failure path。
+        """
         async with httpx.AsyncClient() as client:
-            for provider in providers:
-                # Start
-                start_resp = await client.post(
+            start = await client.post(
+                f"{BACKEND_URL}/api/v1/integrations/oauth/start",
+                headers=auth_headers,
+                json={"provider": TEST_PROVIDER},
+            )
+            assert start.status_code == 200
+            state = start.json()["state"]
+
+            cb = await client.post(
+                f"{BACKEND_URL}/api/v1/integrations/oauth/callback",
+                headers=auth_headers,
+                json={"code": "fake_code_rejected_by_provider", "state": state},
+            )
+            # 502 = 上游 provider 拒絕（唔係 500 crash）
+            assert cb.status_code == 502, f"預期 502，實際 {cb.status_code} {cb.text[:120]}"
+            assert "detail" in cb.json()
+
+            # state 已用過 → 唔可以重玩
+            replay = await client.post(
+                f"{BACKEND_URL}/api/v1/integrations/oauth/callback",
+                headers=auth_headers,
+                json={"code": "fake_code_rejected_by_provider", "state": state},
+            )
+            assert replay.status_code == 400
+
+            lst = await client.get(f"{BACKEND_URL}/api/v1/integrations", headers=auth_headers)
+        assert lst.status_code == 200
+        assert lst.json() == [], "provider 失敗之後唔應該留低 integration"
+
+    async def test_full_flow_with_all_providers(self, auth_headers):
+        """全部 provider 行一次：placeholder 類要成功，真 endpoint 類要 graceful 502。"""
+        async with httpx.AsyncClient() as client:
+            # 1) 真 token endpoint 類：provider 拒絕 fake code → 502，唔留 row
+            for provider in EXCHANGE_PROVIDERS:
+                start = await client.post(
                     f"{BACKEND_URL}/api/v1/integrations/oauth/start",
                     headers=auth_headers,
                     json={"provider": provider},
                 )
-                assert start_resp.status_code == 200, f"Failed to start {provider}"
-                state = start_resp.json()["state"]
-
-                # Callback
-                cb_resp = await client.post(
+                assert start.status_code == 200, f"start {provider} → {start.status_code}"
+                cb = await client.post(
                     f"{BACKEND_URL}/api/v1/integrations/oauth/callback",
                     headers=auth_headers,
-                    json={"code": f"code_{provider}", "state": state},
+                    json={"code": f"code_{provider}", "state": start.json()["state"]},
                 )
-                assert cb_resp.status_code == 200, f"Failed callback for {provider}"
-                integ = cb_resp.json()
+                assert cb.status_code in (500, 502), (
+                    f"{provider} 應該 fail closed（500 = 未配置 / 502 = 上游拒絕），"
+                    f"實際 {cb.status_code}"
+                )
+
+            # 2) placeholder 類：完整連線成功
+            created_ids = []
+            for provider in PLACEHOLDER_PROVIDERS:
+                integ = await _oauth_connect(client, auth_headers, provider)
                 assert integ["provider"] == provider
                 assert integ["status"] == "active"
                 created_ids.append(integ["id"])
 
-        # Verify all 18 providers were created
-        async with httpx.AsyncClient() as client:
-            list_resp = await client.get(
-                f"{BACKEND_URL}/api/v1/integrations",
-                headers=auth_headers,
-            )
+            # 3) 列表只應該見到 placeholder 類（exchange 類冇留 row）
+            list_resp = await client.get(f"{BACKEND_URL}/api/v1/integrations", headers=auth_headers)
         assert list_resp.status_code == 200
         items = list_resp.json()
-        assert len(items) == len(providers)
+        assert len(items) == len(PLACEHOLDER_PROVIDERS), f"實際 {len(items)} 個"
+        assert {i["provider"] for i in items} == set(PLACEHOLDER_PROVIDERS)
 
         return created_ids
 
@@ -320,18 +396,8 @@ class TestIntegrationCRUD:
         """PATCH should update status and config."""
         # First create one
         async with httpx.AsyncClient() as client:
-            start = await client.post(
-                f"{BACKEND_URL}/api/v1/integrations/oauth/start",
-                headers=auth_headers,
-                json={"provider": "outlook_calendar"},
-            )
-            state = start.json()["state"]
-            cb = await client.post(
-                f"{BACKEND_URL}/api/v1/integrations/oauth/callback",
-                headers=auth_headers,
-                json={"code": "code_outlook", "state": state},
-            )
-        integ_id = cb.json()["id"]
+            # CONNECT_PROVIDER = placeholder path（真 endpoint 嘅 provider 會 502）
+            integ_id = (await _oauth_connect(client, auth_headers, CONNECT_PROVIDER))["id"]
 
         # Update
         async with httpx.AsyncClient() as client:
@@ -382,18 +448,7 @@ class TestIntegrationCRUD:
         """GET by ID should return the full record."""
         # Create one
         async with httpx.AsyncClient() as client:
-            start = await client.post(
-                f"{BACKEND_URL}/api/v1/integrations/oauth/start",
-                headers=auth_headers,
-                json={"provider": "gmail"},
-            )
-            state = start.json()["state"]
-            cb = await client.post(
-                f"{BACKEND_URL}/api/v1/integrations/oauth/callback",
-                headers=auth_headers,
-                json={"code": "code_gmail", "state": state},
-            )
-        integ_id = cb.json()["id"]
+            integ_id = (await _oauth_connect(client, auth_headers, CONNECT_PROVIDER))["id"]
 
         # Get
         async with httpx.AsyncClient() as client:
@@ -404,7 +459,7 @@ class TestIntegrationCRUD:
         assert resp.status_code == 200
         data = resp.json()
         assert data["id"] == integ_id
-        assert data["provider"] == "gmail"
+        assert data["provider"] == CONNECT_PROVIDER
         assert data["status"] == "active"
 
 
@@ -419,17 +474,7 @@ class TestTenantIsolation:
 
         # User A creates an integration
         async with httpx.AsyncClient() as client:
-            start = await client.post(
-                f"{BACKEND_URL}/api/v1/integrations/oauth/start",
-                headers=auth_headers,
-                json={"provider": TEST_PROVIDER},
-            )
-            state = start.json()["state"]
-            await client.post(
-                f"{BACKEND_URL}/api/v1/integrations/oauth/callback",
-                headers=auth_headers,
-                json={"code": "code_a", "state": state},
-            )
+            await _oauth_connect(client, auth_headers, CONNECT_PROVIDER)
 
         # User B (different tenant) should see nothing
         async with httpx.AsyncClient() as client:
@@ -445,18 +490,7 @@ class TestTenantIsolation:
         """User B should get 404 trying to access User A's integration by ID."""
         # Create as User A
         async with httpx.AsyncClient() as client:
-            start = await client.post(
-                f"{BACKEND_URL}/api/v1/integrations/oauth/start",
-                headers=auth_headers,
-                json={"provider": "outlook_calendar"},
-            )
-            state = start.json()["state"]
-            cb = await client.post(
-                f"{BACKEND_URL}/api/v1/integrations/oauth/callback",
-                headers=auth_headers,
-                json={"code": "code_outlook", "state": state},
-            )
-        integ_id = cb.json()["id"]
+            integ_id = (await _oauth_connect(client, auth_headers, CONNECT_PROVIDER))["id"]
 
         # User B tries to access User A's integration
         async with httpx.AsyncClient() as client:
@@ -487,7 +521,7 @@ class TestErrorScenarios:
             start = await client.post(
                 f"{BACKEND_URL}/api/v1/integrations/oauth/start",
                 headers=auth_headers,
-                json={"provider": TEST_PROVIDER},
+                json={"provider": CONNECT_PROVIDER},
             )
             state = start.json()["state"]
 
@@ -506,6 +540,45 @@ class TestErrorScenarios:
                 json={"code": "code_second", "state": state},
             )
             assert cb2.status_code == 400
+
+    async def test_expired_oauth_state_rejected(self, auth_headers, db_conn):
+        """過期 OAuth state 唔可以再用（state 有 TTL，見 OAUTH_STATE_TTL_MIN）。
+
+        2026-09-15 新增：之前 OAuthState 完全冇 expiry check → 洩漏咗嘅 state 可以
+        無限期待用，未用嘅 state 亦一直累積（實測 300+ row）。
+        """
+        async with httpx.AsyncClient() as client:
+            start = await client.post(
+                f"{BACKEND_URL}/api/v1/integrations/oauth/start",
+                headers=auth_headers,
+                json={"provider": CONNECT_PROVIDER},
+            )
+            assert start.status_code == 200
+            state = start.json()["state"]
+
+        # 將 created_at 推前到 TTL 之外
+        with db_conn.cursor() as cur:
+            cur.execute(
+                "UPDATE nexus_crm.nexus_oauth_states SET created_at = now() - interval '2 hours' "
+                "WHERE state = %s",
+                (state,),
+            )
+            assert cur.rowcount == 1, "應該搵到啱啱建立嘅 state"
+
+        async with httpx.AsyncClient() as client:
+            cb = await client.post(
+                f"{BACKEND_URL}/api/v1/integrations/oauth/callback",
+                headers=auth_headers,
+                json={"code": "code_expired", "state": state},
+            )
+            assert cb.status_code == 400, f"過期 state 應該 400，實際 {cb.status_code}"
+
+            lst = await client.get(f"{BACKEND_URL}/api/v1/integrations", headers=auth_headers)
+        assert lst.json() == [], "過期 state 唔應該建立到 integration"
+
+        # 清走呢條 state（test 自己嘅殘留）
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM nexus_crm.nexus_oauth_states WHERE state = %s", (state,))
 
     async def test_bad_integration_id_format(self, auth_headers):
         """Non-UUID string should be rejected gracefully."""

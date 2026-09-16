@@ -206,8 +206,7 @@ export const ADD_CONFIGS: Record<string, AddModalConfig> = {
       { key: 'participants', label: 'Contact',      type: 'relation', relation: { resource: 'contacts', multiple: true, displayField: 'name' } },
       // touchpoint 正文 = description（summary 係 zip legacy — 移除避免混淆）
       { key: 'description', label: 'Description',   type: 'rich_text', gridColumn: 'full' },
-      { key: 'duration_minutes', label: 'Duration', type: 'number', format: 'hours' },
-      { key: 'location', label: 'Location',         type: 'text' },
+      { key: 'location',     label: 'Location',         type: 'text' },
       // 2026-09-09: 多公司（011 — companies 全列；第一個 = 主要 company_id）
       { key: 'companies',  label: 'Company',        type: 'relation', relation: { resource: 'companies', multiple: true, displayField: 'name' } },
     ],

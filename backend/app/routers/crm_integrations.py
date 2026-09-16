@@ -15,7 +15,7 @@ import secrets
 import os
 import json
 import urllib.parse
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -359,11 +359,16 @@ async def oauth_callback(
     tenant_id = _tid(request)
     user_id = _uid(request)
 
-    # Look up OAuthState by state to get provider
+    # Look up OAuthState by state to get provider。
+    # 2026-09-15：加 TTL。state 係一次性 CSRF token，之前冇任何 expiry check →
+    # 洩漏咗（URL / browser history / log）嘅 state 可以無限期待用，而且未用嘅
+    # state 會一直累積（實測 300+ row）。
     q = select(OAuthState).where(
         OAuthState.state == state,
         OAuthState.tenant_id == tenant_id,
         OAuthState.user_id == user_id,
+        OAuthState.created_at
+        > datetime.now(timezone.utc) - timedelta(minutes=OAUTH_STATE_TTL_MIN),
     )
     state_row = (await db.execute(q)).scalar_one_or_none()
     if not state_row:
@@ -371,8 +376,19 @@ async def oauth_callback(
 
     provider = state_row.provider
 
-    # Exchange code for tokens (provider-specific)
-    token_data = await _exchange_code(provider, code)
+    # Exchange code for tokens (provider-specific).
+    # 2026-09-15：state 係一次性 token。exchange 失敗（上游 502 / provider 未配置 500）時
+    # 唔即刻 consume 就會留低 state row（request 失敗 → transaction rollback 埋個刪除），
+    # 變成可以無限重玩，oauth_states 亦會慢慢漏 row。
+    try:
+        token_data = await _exchange_code(provider, code)
+    except HTTPException:
+        try:
+            await db.delete(state_row)
+            await db.commit()
+        except Exception:
+            await db.rollback()
+        raise
 
     # Upsert integration
     q2 = select(Integration).where(
@@ -528,6 +544,10 @@ def _provider_display_name(provider: str) -> str:
     return PROVIDER_DISPLAY.get(provider, provider.replace("_", " ").title())
 
 
+# OAuth state 最長有效時間（分鐘）— 過期後 callback 一律 400（見 oauth_callback）。
+OAUTH_STATE_TTL_MIN = 15
+
+# 有真實 token endpoint 嘅 provider；冇列出嘅會走 placeholder 分支。
 _TOKEN_ENDPOINTS = {
     "google_calendar": "https://oauth2.googleapis.com/token",
     "gmail": "https://oauth2.googleapis.com/token",

@@ -54,6 +54,7 @@ def _extract_json(text: str) -> dict | None:
 
 
 _FIELDS = ("name", "chinese_name", "title", "company", "email", "phone",
+           "mobile", "office_phone", "fax",
            "website", "address", "linkedin")
 
 # ── Company name normalisation (架構文檔 §階段三) ─────────────
@@ -154,7 +155,13 @@ def llm_structured(raw_text: str, usage_out: list | None = None) -> dict[str, An
         "business card:\n---\n" + raw_text[:2000] + "\n---\n"
         "Return ONLY JSON with these keys (empty string if absent): "
         '{"name":"","chinese_name":"","title":"","company":"","email":"",'
-        '"phone":"","website":"","address":"","linkedin":""}. '
+        '"phone":"","mobile":"","office_phone":"","fax":"","website":"","address":"","linkedin":""}. '
+        "phone = 主要聯絡電話（手機優先，冇手機才用公司電話）. "
+        "mobile = 手機（Mobile / M: / 手機 / 手提 / WhatsApp）. "
+        "office_phone = 公司電話或直線（Tel / Office / T: / 公司電話）. "
+        "fax = 傳真號碼（Fax / F: / 傳真）— 唔可以當成 office_phone. "
+        "address = 公司地址（Office address），保留原本分行寫法，冇就空字串. "
+        "A card can have BOTH mobile and office phone — do not merge them into one field. "
         "Clean OCR noise (e.g. stray symbols, duplicated words, wrong "
         "capitalization). Keep Chinese company/person names in Chinese. "
         "Do not invent data that is not in the text."
@@ -219,10 +226,12 @@ def llm_duplicate_analysis(parsed: dict[str, Any],
         return {"is_duplicate": False, "candidate_id": None, "confidence": 0.0,
                 "reason": ""}
     card = {k: parsed.get(k, "") for k in
-            ("name", "chinese_name", "title", "company", "email", "phone")}
+            ("name", "chinese_name", "title", "company", "email", "phone",
+             "mobile", "office_phone")}
     cands = [
         {k: c.get(k, "") for k in
-         ("id", "name", "chinese_name", "title", "company", "email", "phone")}
+         ("id", "name", "chinese_name", "title", "company", "email", "phone",
+          "office_phone")}
         for c in candidates
     ]
     prompt = (

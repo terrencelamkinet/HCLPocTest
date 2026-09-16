@@ -5,6 +5,10 @@
  2. 未達閾值 → 唔告警
  3. Cooldown 期內 → 抑制（唔會洗版），但**仍然出 warning log**（唔准靜默）
  4. Retention 刪 >N 日嘅 row，唔會誤刪新 row
+
+2026-09-15：check_and_alert 加 tenant 參數，test 一律傳自己嘅 tenant（T），
+否則其他 test 產生嘅真錯誤（例如 oauth callback 嘅 502）會計入全局窗口，
+令 below-threshold 測試隨機紅。
 """
 
 import os
@@ -80,7 +84,7 @@ async def _seed(n: int, *, age_days: int = 0):
 @pytest.mark.asyncio
 async def test_alert_when_over_threshold():
     await _seed(THRESHOLD + 1)
-    res = await check_and_alert()
+    res = await check_and_alert(tenant_id=str(T))
     assert res["total"] >= THRESHOLD + 1
     assert res["alerted"] is True, res
     assert os.path.exists(COOLDOWN_PATH), "應該寫咗 cooldown 檔"
@@ -94,7 +98,7 @@ async def test_alert_when_over_threshold():
 @pytest.mark.asyncio
 async def test_no_alert_below_threshold():
     await _seed(max(1, THRESHOLD - 1))
-    res = await check_and_alert()
+    res = await check_and_alert(tenant_id=str(T))
     assert res["alerted"] is False
     assert res["skipped"] is None
 
@@ -102,9 +106,9 @@ async def test_no_alert_below_threshold():
 @pytest.mark.asyncio
 async def test_cooldown_suppresses_repeat_alert():
     await _seed(THRESHOLD + 2)
-    first = await check_and_alert()
+    first = await check_and_alert(tenant_id=str(T))
     assert first["alerted"] is True
-    second = await check_and_alert()
+    second = await check_and_alert(tenant_id=str(T))
     assert second["alerted"] is False
     assert second["skipped"] == "cooldown", "第二次應該被 cooldown 抑制"
 

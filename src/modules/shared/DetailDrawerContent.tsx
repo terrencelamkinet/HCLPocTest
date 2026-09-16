@@ -8,6 +8,7 @@ import { buildPayload, apiErrorToString } from './field-utils'
 import { localizeResourceLabel } from './labels'
 import { ragForStatus } from './NexusDetailPageV2'
 import type { HighlightWidget } from './NexusDetailPageV2'
+import { htmlToPlainText } from '../../lib/sanitizeHtml'
 import type { ModuleConfig, EntityRecord } from '../module-types'
 
 interface Props {
@@ -27,6 +28,16 @@ function formatDateSafe(d?: string): string {
   const dt = new Date(d)
   if (isNaN(dt.getTime())) return '—'
   return dt.toLocaleDateString()
+}
+
+/* 2026-09-16 Terrence：touchpoint General Info 要顯示關聯嘅聯絡人／公司。
+   Backend 返 object array（{id,name}）或者純 id 都有可能 → 兩種都食。
+   空值回 '—'（唔好回空字串，否則會被「隱藏空行」邏輯收走）。 */
+function joinNames(v: unknown): string {
+  const names = (Array.isArray(v) ? v : [])
+    .map(x => (x && typeof x === 'object' ? ((x as any).name || (x as any).title || (x as any).id) : x))
+    .filter(Boolean)
+  return names.length ? names.join(', ') : '—'
 }
 
 export default function DetailDrawerContent({ config, id, onClose, extraData }: Props) {
@@ -172,7 +183,6 @@ export default function DetailDrawerContent({ config, id, onClose, extraData }: 
     if (config.name === 'touchpoint') return [
       { label: t('fields.type', { defaultValue: 'Type' }), value: e.type || '—', trend: 'neutral' },
       { label: t('fields.date', { defaultValue: 'Date' }), value: formatDateSafe(e.date), trend: 'neutral' },
-      { label: t('fields.duration', { defaultValue: 'Duration' }), value: e.duration_minutes != null ? `${e.duration_minutes}m` : '—', trend: 'neutral' },
     ]
     return []
   })()
@@ -206,7 +216,10 @@ export default function DetailDrawerContent({ config, id, onClose, extraData }: 
     ]
     if (config.name === 'touchpoint') return [
       [t('fields.location', { defaultValue: 'Location' }), e.location || '—'],
-      [t('fields.description', { defaultValue: 'Description' }), e.description || '—'],
+      [t('fields.contact', { defaultValue: 'Contact' }), joinNames(e.participants)],
+      [t('fields.company', { defaultValue: 'Company' }), joinNames(e.companies)],
+      /* 窄身 row 唔 render HTML → 抽純文字（TipTap HTML 之前會連 <p><span> tag 一齊顯示） */
+      [t('fields.description', { defaultValue: 'Description' }), htmlToPlainText(e.description) || '—'],
     ]
     return [] as [string, string][]
   })()
@@ -316,10 +329,14 @@ export default function DetailDrawerContent({ config, id, onClose, extraData }: 
           <div className="sb-card">
             <div className="sb-head">{t('common.generalInfo', { defaultValue: 'General Info' })}</div>
             {generalInfo.map(([label, value], i) => {
-              if (!value || value === '—') return null
+              /* 2026-09-16 Terrence：touchpoint 嘅 Location／Contact／Company 就算冇值都要顯示（唔好靜靜收走） */
+              const keepEmpty = config.name === 'touchpoint'
+              if (!keepEmpty && (!value || value === '—')) return null
               const isCompany = config.name === 'contact' && label === t('fields.company', { defaultValue: 'Company' })
+              /* 2026-09-16 Terrence：Description 係長文，唔跟右對齊 + ellipsis → 標籤一行、內容下面一行、靠左 */
+              const isBlock = config.name === 'touchpoint' && label === t('fields.description', { defaultValue: 'Description' })
               return (
-                <div className="sb-row" key={i}>
+                <div className={`sb-row${isBlock ? ' sb-row-block' : ''}`} key={i}>
                   <span className="sb-row-label">{label}</span>
                   {isCompany && relatedCompanyId ? (
                     <span

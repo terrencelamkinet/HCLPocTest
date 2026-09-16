@@ -729,6 +729,17 @@ async def upsert_custom_field_value(
     db: AsyncSession = Depends(get_tenant_session),
 ):
     tenant_id = _get_tenant_id(request)
+    definition = (
+        await db.execute(
+            select(CustomFieldDefinition).where(
+                CustomFieldDefinition.id == definition_id,
+                CustomFieldDefinition.tenant_id == tenant_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if not definition:
+        raise HTTPException(status_code=404, detail="Custom field definition not found")
+
     result = await db.execute(
         select(CustomFieldValue).where(
             CustomFieldValue.tenant_id == tenant_id,
@@ -743,14 +754,23 @@ async def upsert_custom_field_value(
         val.value_boolean = body.value_boolean
         val.value_date = body.value_date
         val.value_json = body.value_json
+        val.module_name = definition.module_name
     else:
         val = CustomFieldValue(
-            tenant_id=tenant_id, definition_id=definition_id, **body.model_dump()
+            tenant_id=tenant_id,
+            definition_id=definition_id,
+            module_name=definition.module_name,  # KB-047：NOT NULL，由 definition 推導
+            **body.model_dump(),
         )
         db.add(val)
-    await db.commit()
+    # KB-047：`set_config('app.tenant_id', …, true)` 係 transaction-local ⇒ commit 之後
+    # RLS policy 讀唔到 GUC 會爆 `invalid input syntax for type uuid: ""`（寫入成功但 API 500）。
+    # 慣例（同 ai_secretary.py:341 一致）：refresh 喺 transaction 內做，serialize 之後先 commit。
+    await db.flush()
     await db.refresh(val)
-    return val
+    out = CustomFieldValueOut.model_validate(val)
+    await db.commit()
+    return out
 
 
 # ── Phase 5: Workflow Apps ──

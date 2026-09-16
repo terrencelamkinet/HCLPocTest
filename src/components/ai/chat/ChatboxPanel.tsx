@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import SvcIcon from '../../../components/SvcIcon'
 import { useTranslation } from 'react-i18next'
-import { apiClient, getStoredAuth } from '../../../lib/api'
+import { apiClient } from '../../../lib/api'
 import MarkdownMessage from '../../MarkdownRenderer'
 import MessageTimestamp from './MessageTimestamp'
 import LoadingIndicator from './LoadingIndicator'
@@ -298,9 +298,12 @@ function CitationChip({ citations }: { citations: CitationSource[] }) {
           {citations.slice(0, 5).map((cit, ci) => (
             <div key={ci}
               onClick={() => {
+                // 2026-09-15 SAST：cit.type / cit.id 來自 AI 輸出（唔可信）→ 只准白名單 route，
+                // 其他一律唔開（之前 routes[cit.type] || cit.type 會放任意路徑出去）。
                 const routes: Record<string, string> = { company: 'companies', contact: 'contacts', deal: 'deals', project: 'projects' }
-                const route = routes[cit.type] || cit.type
-                window.open(`/${route}/${cit.id}`, '_blank')
+                const route = routes[cit.type]
+                if (!route) return
+                window.open(`/${route}/${encodeURIComponent(String(cit.id))}`, '_blank', 'noopener,noreferrer')
               }}
               className="cb-citation-item"
               onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-offset-2)' }}
@@ -683,10 +686,11 @@ export default function ChatboxPanel() {
     try {
       const resp = await fetch('/api/v1/ai/chat/stream', {
         method: 'POST',
+        // 2026-09-15 SAST：session 喺 httpOnly cookie，唔再手動帶 Authorization
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${getStoredAuth()?.access_token || ''}`,
         },
+        credentials: 'include',
         body: JSON.stringify({
           messages: activeContext
             ? [{ role: 'system', content: `使用者正在查看 ${activeContext.name}（${activeContext.type}）。請以 CRM 助理身份，基於此客戶/實體背景回答問題。` }, { role: 'user', content: text }]

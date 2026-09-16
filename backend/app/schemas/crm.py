@@ -108,6 +108,8 @@ class ContactCreate(BaseModel):
     grade: Optional[str] = None
     numbers: list[str] = []
     office_phone: Optional[str] = None
+    mobile: Optional[str] = None
+    fax: Optional[str] = None
     namecard_path: Optional[str] = None
     status: Optional[str] = None
     source: Optional[str] = None
@@ -133,6 +135,8 @@ class ContactUpdate(BaseModel):
     grade: Optional[str] = None
     numbers: Optional[list[str]] = None
     office_phone: Optional[str] = None
+    mobile: Optional[str] = None
+    fax: Optional[str] = None
     namecard_path: Optional[str] = None
     status: Optional[str] = None
     source: Optional[str] = None
@@ -154,6 +158,8 @@ class ContactResponse(BaseModel):
     grade: Optional[str] = None
     numbers: Optional[list[str]] = None
     office_phone: Optional[str] = None
+    mobile: Optional[str] = None
+    fax: Optional[str] = None
     namecard_path: Optional[str] = None
     department: Optional[str] = None
     linkedin_url: Optional[str] = None

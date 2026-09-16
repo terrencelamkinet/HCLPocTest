@@ -132,7 +132,7 @@ async def send_contact(wa_id: str, contact: dict) -> dict:
     
     contact dict keys (all optional except name):
       name: str          — "Wilson Chan"
-      phone: str         — "+85291234567"
+      phone: str         — "+85200000000"
       email: str         — "wilson@example.com"
       company: str       — "SYSTEX Information (H.K.) Ltd."
       job_title: str     — "Sales Manager"

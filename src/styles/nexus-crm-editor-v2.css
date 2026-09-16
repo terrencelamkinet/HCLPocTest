@@ -21,6 +21,27 @@
 .nxe-tb-wordcount { font-size: 11px; color: var(--color-text-faint); padding: 0 6px; font-weight: 600; white-space: nowrap; }
 .nxe-tb-divider { width: 1px; height: 20px; background: var(--color-divider); margin: 0 3px; }
 
+/* ═══ 2026-09-16 Terrence：「所有 nexus editor 喺 detail page edit 時可以收藏 tool 先」═══
+   格式工具預設收起，撳「格式」才展開。bar 本身喺正常 flow（唔係 overlay）→
+   展開嗰陣只會推低內容，唔會浮喺文字上面。 */
+.nxe-tools-toggle {
+  display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 10px;
+  border-radius: 8px; border: 1px solid var(--color-border); background: var(--color-surface);
+  color: var(--color-text-muted); font-size: 12.5px; font-weight: 700; cursor: pointer;
+  white-space: nowrap; flex-shrink: 0;
+  transition: background .12s ease, color .12s ease, border-color .12s ease;
+}
+.nxe-tools-toggle:hover { background: var(--color-surface-offset); color: var(--color-text); }
+.nxe-tools-toggle.open {
+  color: var(--color-primary);
+  border-color: color-mix(in oklch, var(--color-primary) 40%, transparent);
+  background: color-mix(in oklch, var(--color-primary) 10%, transparent);
+}
+/* 收起：淨返 toggle + 字數 + AI，單行唔 wrap（窄容器例如 drawer／modal 都唔會變 3 行） */
+.nxe-toolbar-collapsed { flex-wrap: nowrap; }
+.nxe-mtb-toggle { flex-shrink: 0; }
+.nxe-mtb-toggle.active { color: var(--color-primary); }
+
 /* Keyboard shortcut tooltip — reinforces hardware-keyboard usage */
 .nxe-kbd-tip { position: absolute; top: 36px; left: 50%; transform: translateX(-50%) translateY(-4px); background: #1c1f26; color: #fff; font-size: 10.5px; font-weight: 600; padding: 4px 8px; border-radius: 6px; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity .12s ease, transform .12s ease; z-index: 20; }
 .nxe-kbd-tip kbd { background: rgba(255,255,255,.15); border-radius: 3px; padding: 1px 4px; font-family: inherit; margin-left: 3px; }
@@ -99,18 +120,14 @@
 .nxe-block-handle.visible { opacity: 1; }
 .nxe-handle-btn { width: 22px; height: 24px; border-radius: 6px; display: flex; align-items: center; justify-content: center; background: none; border: none; color: var(--color-text-faint); cursor: pointer; transition: background .12s ease, color .12s ease; }
 .nxe-handle-btn:hover { background: var(--color-surface-offset-2); color: var(--color-text-muted); }
-.nxe-handle-btn.grip { cursor: grab; }
-.nxe-handle-btn.grip:active { cursor: grabbing; }
+/* 2026-09-16 Terrence：`.nxe-handle-btn.grip`（⋮⋮ + cursor:grab）已移除 —— 佢根本冇 drag
+   功能（code 冇 draggable／dragstart），只係開區塊 menu，cursor:grab 純屬誤導。
+   連只可以由佢開嘅區塊 menu 一齊收走；工具列本身（格式／清單／待辦…）已經齊。 */
 .nxe-drop-indicator { position: absolute; left: 34px; right: 10px; height: 3px; border-radius: 2px; background: var(--color-primary); z-index: 9; pointer-events: none; box-shadow: 0 0 0 3px color-mix(in oklch, var(--color-primary) 20%, transparent); }
 /* ⚠️ 必須同 .nxe-content 嘅 padding 同步（34/10），否則拖放指示線唔會對齊文字 */
-.nxe-block-context-menu { position: absolute; background: var(--color-surface-2); border: 1px solid var(--color-border); border-radius: 10px; box-shadow: 0 14px 34px -8px rgba(0,0,0,.3); padding: 5px; min-width: 190px; z-index: 40; animation: nxe-pop .13s ease; }
 .nxe-bcm-item { display: flex; align-items: center; gap: 9px; padding: 7px 9px; border-radius: 7px; font-size: 13px; font-weight: 600; color: var(--color-text); cursor: pointer; }
 .nxe-bcm-item:hover { background: var(--color-surface-offset); }
 .nxe-bcm-item.danger { color: var(--color-danger); }
-.nxe-bcm-sep { height: 1px; background: var(--color-divider); margin: 4px 2px; }
-.nxe-bcm-colors { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; padding: 4px; }
-.nxe-bcm-color-swatch { width: 22px; height: 22px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; }
-.nxe-bcm-color-swatch:hover { border-color: var(--color-border); }
 
 /* Block being dragged — visual lift */
 .nxe-content .ProseMirror-selectednode { outline: 2px solid var(--color-primary); border-radius: 4px; }

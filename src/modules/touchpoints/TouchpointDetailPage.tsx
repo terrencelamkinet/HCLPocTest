@@ -8,6 +8,7 @@ import { FieldsRenderer } from '../shared/FieldsRenderer'
 import { buildPayload, apiErrorToString } from '../shared/field-utils'
 import { isModuleEnabled } from '../enabled-modules'
 import { apiClient } from '../../lib/api'
+import { sanitizeHtml, htmlToPlainText } from '../../lib/sanitizeHtml'
 
 function formatDate(d?: string): string {
   if (!d) return '—'
@@ -109,7 +110,6 @@ export default function TouchpointDetailPage() {
   const highlights: HighlightWidget[] = [
     { label: t('fields.type', { defaultValue: 'Type' }), value: entity.type || '—', trend: 'neutral' },
     { label: t('fields.date', { defaultValue: 'Date' }), value: formatDate(entity.date), trend: 'neutral' },
-    { label: t('fields.duration', { defaultValue: 'Duration' }), value: entity.duration_minutes != null ? `${entity.duration_minutes}m` : '—', trend: 'neutral' },
     { label: t('fields.location', { defaultValue: 'Location' }), value: entity.location || '—', trend: 'neutral' },
   ]
 
@@ -123,7 +123,11 @@ export default function TouchpointDetailPage() {
         <div className="panel">
           <div className="panel-head"><h3>{t('fields.description', { defaultValue: 'Description' })}</h3></div>
           {entity.description ? (
-            <div style={{ padding: '12px 16px', fontSize: 14, lineHeight: 1.7, whiteSpace: 'pre-wrap', color: 'var(--color-text-primary)' }}>{entity.description}</div>
+            /* 2026-09-16 Terrence 報「editor 加完內容食唔到 style」：
+               description 係 TipTap HTML，之前當純文字 render → 見到 `<p><span>…` 原文 + 冇晒排版。
+               改用兄弟 module（EntityNotesPanel）同一套：sanitizeHtml + .nxe-rendered-content。 */
+            <div className="nxe-rendered-content" style={{ padding: '12px 16px' }}
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(entity.description) }} />
           ) : (
             <div className="empty-state">{t('common.noData', { defaultValue: 'No data' })}</div>
           )}
@@ -169,9 +173,9 @@ export default function TouchpointDetailPage() {
             title: t('common.generalInfo', { defaultValue: 'General Info' }),
             fields: [
               { label: t('fields.type', { defaultValue: 'Type' }), value: entity.type || '—' },
-              { label: t('fields.description', { defaultValue: 'Description' }), value: entity.description || '—' },
+              /* 窄身 row 唔 render HTML → 抽純文字，避免 tag 當文字顯示 */
+              { label: t('fields.description', { defaultValue: 'Description' }), value: htmlToPlainText(entity.description) || '—' },
               { label: t('fields.date', { defaultValue: 'Date' }), value: formatDate(entity.date) },
-              { label: t('fields.duration', { defaultValue: 'Duration' }), value: entity.duration_minutes != null ? `${entity.duration_minutes}m` : '—' },
               { label: t('fields.location', { defaultValue: 'Location' }), value: entity.location || '—' },
               { label: t('fields.contact', { defaultValue: 'Contact' }), value: participantNames || '—' },
               { label: t('fields.company', { defaultValue: 'Company' }), value: companyNames || '—' },
@@ -186,18 +190,6 @@ export default function TouchpointDetailPage() {
         ]}
         tabs={tabs}
       />
-      {editOpen && (
-        <div className="nx-inline-edit-panel">
-          <div className="nx-inline-edit-title">{t('common.editing', { defaultValue: '編輯' })}</div>
-          <div className="nx-inline-edit-grid">
-            {detailFields.map(f => (
-              <FieldsRenderer key={f.key} field={f} entity={entity} form={form}
-                onChange={handleChange} editOpen={true}
-                relationData={{ contacts, companies }} />
-            ))}
-          </div>
-        </div>
-      )}
     </>
   )
 }

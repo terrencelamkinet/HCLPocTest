@@ -6,7 +6,9 @@
 
 .nc-module-shell { display: flex; flex-direction: column; height: 100%; }
 .nc-module-nav {
-  display: flex; gap: var(--space-1); padding: 0 var(--space-6);
+  /* 2026-09-15 Terrence「標題走位」：tab 行原本自己加 24px（mobile 12px）水平 padding，
+     但頁面已經喺 .nx2-content 內 ⇒ tab 左邊界 298 vs 標題 274 ✗。改 0，同標題對齊。 */
+  display: flex; gap: var(--space-1); padding: 0;
   border-bottom: 1px solid var(--color-border); background: var(--color-bg); flex-shrink: 0;
 }
 .nc-module-tab {
@@ -25,6 +27,6 @@
 .nc-module-body > * { flex: 1; min-width: 0; }
 
 @media (max-width: 767px) {
-  .nc-module-nav { padding: 0 var(--space-3); overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .nc-module-nav { padding: 0; overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .nc-module-tab { padding: var(--space-3) var(--space-3); font-size: 12.5px; white-space: nowrap; }
 }

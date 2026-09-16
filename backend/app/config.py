@@ -4,15 +4,18 @@ class Settings(BaseSettings):
     # ⚠️ 只用喺 main.py 嘅 FastAPI(title=...) = OpenAPI 標題（純顯示）。
     # 確認過同 JWT issuer / audience 無關，改名唔會令任何 session 失效。
     app_name: str = "Penguin CRM API"
-    debug: bool = True
+    # 2026-09-15 SAST：debug 預設 False（之前 default True，prod .env 冇 NEXUS_DEBUG
+    # 就會令 debug 路徑喺 production 生效）；dev-login endpoint 已於 v7.88.11 整個刪走。
+    debug: bool = False
     # Public-facing base URL (for OAuth redirect URIs behind cloudflared).
     # Set in production .env: PUBLIC_BASE_URL=https://www.penguincrm.io
     public_base_url: str = ""
 
     # Database — via PgBouncer (transaction pool, port 6432) for 50k-scale
     # connection multiplexing. Direct 5432 fallback kept in comments.
-    #   direct: postgresql+asyncpg://gg_fighter:CHANGE_ME@127.0.0.1:5432/nexus_crm
-    database_url: str = "postgresql+asyncpg://gg_fighter:CHANGE_ME@127.0.0.1:6432/nexus_crm"
+    #   direct: postgresql+asyncpg://gg_fighter:...@127.0.0.1:5432/nexus_crm
+    database_url: str = ""  # NEXUS_DATABASE_URL（必填）— 2026-09-15 SAST：移除 hardcoded
+    # credential default（gg_fighter 密碼之前 hardcode 喺 repo，已 rotate + 移入 .env）
 
     # JWT — RS256 asymmetric for tenant security
     jwt_private_key_path: str = "keys/private.pem"
@@ -23,7 +26,7 @@ class Settings(BaseSettings):
 
     # PgBouncer (transaction pool) — same URL as database_url; kept for
     # components that need the dedicated nexus_app role (e.g. migrations).
-    app_database_url: str = "postgresql+asyncpg://nexus_app:CHANGE_ME@127.0.0.1:6432/nexus_crm"
+    app_database_url: str = ""  # NEXUS_APP_DATABASE_URL（migrations 用；2026-09-15 同理移入 .env）
 
     # Briefing scheduler — BYPASSRLS role so it can scan ALL users' settings.
     briefing_database_url: str = ""  # NEXUS_BRIEFING_DATABASE_URL
@@ -66,6 +69,14 @@ class Settings(BaseSettings):
     smtp_user: str = ""
     smtp_pass: str = ""
     mfa_from_email: str = "noreply@nexus-crm.com"
+
+    # ── Session cookie（2026-09-15 SAST：token 由 localStorage 搬入 httpOnly）──
+    # 見 app/services/session_cookies.py。默認 True = fail-safe（生產 HTTPS）。
+    # 只有本地 HTTP 驗證（pytest / curl）需要 NEXUS_COOKIE_SECURE=false，
+    # 因為 Python cookiejar 唔似 browser 會對 localhost 放行 Secure cookie。
+    cookie_secure: bool = True
+    # 留空 = host-only cookie（最安全）。跨 subdomain 共享才需要設。
+    cookie_domain: str = ""
 
     # CORS
     allowed_origins: str = "http://localhost:5173,https://nexus-crm.kinet-poc.com,https://www.penguincrm.io,https://penguincrm.io"

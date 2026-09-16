@@ -30,7 +30,9 @@ class RegisterRequest(BaseModel):
     display_name: str = ""
 
 class RefreshRequest(BaseModel):
-    refresh_token: str
+    # 2026-09-15 SAST：新前端將 refresh token 放喺 httpOnly cookie，唔再傳 body
+    # → 呢個 field 變成 optional（留空 = 由 cookie 拎）。
+    refresh_token: str = ""
 
 class ForgotPasswordRequest(BaseModel):
     email: str

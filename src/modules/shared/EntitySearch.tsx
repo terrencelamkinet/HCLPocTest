@@ -133,14 +133,9 @@ export default function EntitySearch({
     abortRef.current = controller
     setLoading(true)
 
-    fetch(`${searchUrl}?search=${encodeURIComponent(q)}&limit=20`, {      headers: {
-        'Authorization': `Bearer ${(() => {
-          try {
-            const raw = localStorage.getItem('nexus_crm_auth')
-            return raw ? JSON.parse(raw).access_token : ''
-          } catch { return '' }
-        })()}`,
-      },
+    // 2026-09-15 SAST：session 喺 httpOnly cookie（同源 fetch 自動帶）
+    fetch(`${searchUrl}?search=${encodeURIComponent(q)}&limit=20`, {
+      credentials: 'include',
       signal: controller.signal,
     })
       .then(r => r.json())

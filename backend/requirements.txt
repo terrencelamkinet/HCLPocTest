@@ -1,4 +1,7 @@
 fastapi==0.115.6
+# 2026-09-15 SAST（AppScan HCLPoCTest）
+nh3==0.3.7          # HTML allowlist sanitizer（notes content — stored XSS）
+defusedxml==0.7.1   # XXE-safe XML parsing（briefing_sources，代替 xml.etree）
 uvicorn[standard]==0.34.0
 sqlalchemy[asyncio]==2.0.36
 asyncpg==0.30.0

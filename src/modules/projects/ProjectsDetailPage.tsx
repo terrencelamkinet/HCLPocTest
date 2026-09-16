@@ -9,6 +9,7 @@ import { buildPayload, apiErrorToString } from '../shared/field-utils'
 import { isModuleEnabled } from '../enabled-modules'
 import { apiClient } from '../../lib/api'
 import EntityNotesPanel from '../shared/EntityNotesPanel'
+import { htmlToPlainText } from '../../lib/sanitizeHtml'
 
 function formatDate(d?: string): string {
   if (!d) return '—'
@@ -136,7 +137,7 @@ export default function ProjectsDetailPage() {
               { label: t('fields.deadline', { defaultValue: 'Deadline' }), value: formatDate(entity.deadline) },
               { label: t('fields.budget', { defaultValue: 'Budget' }), value: entity.budget_amount != null ? String(entity.budget_amount) : '—' },
               { label: t('fields.company', { defaultValue: 'Company' }), value: (entity.company as any)?.name || '—' },
-              { label: t('fields.description', { defaultValue: 'Description' }), value: entity.description || '—' },
+              { label: t('fields.description', { defaultValue: 'Description' }), value: htmlToPlainText(entity.description) || '—' },
             ],
           },
           {

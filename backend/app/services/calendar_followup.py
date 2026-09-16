@@ -2,15 +2,22 @@
 
 Design: docs/calendar-crm-integration-design-v3-2026-09-09.md §1/§5 + §11:
 - T+30 (event end + 30min): check whether a touchpoint already exists for the
-  event (linked company/contact within the event window). If yes → silent
-  (status 'created'). If no → ASK the user once (unified tone per Q4; no
-  auto-mute per Q1 — but only asks once per event).
-- Reply handling routes through telegram_inbound (see _handle_pending_followup)
-  — "唔使" → skipped; content → AI composes a touchpoint draft (reusing the
-  draft→confirm flow), confirm executes and links the resolved company.
+  event (linked company/contact within the event window). If yes -> silent
+  (status 'created'). If no -> ASK the user once.
+- Reply handling routes through telegram_inbound (_handle_pending_followup)
+  — "唔使" -> skipped; content -> AI composes a touchpoint draft (reusing the
+  draft->confirm flow), confirm executes and links the resolved company.
 - WhatsApp channel bypassed (user 2026-09-09).
+
+產出物只有 touchpoint，冇 task（KB-048，2026-09-16）：
+  2026-09-12 `fd66569` 曾經喺 `ask_followup()` 加咗一條 task 生產線
+  （`meeting_task.create_task_from_meeting`），令同一場會議生兩樣 artefact
+  （touchpoint 意圖 + task 實體），產出 6 條「跟進會議：」task（連取消咗嘅
+  會議都開單）。該生產線已移除：會議嘅唯一記錄 = touchpoint（用戶覆 → 草稿
+  → 確認，見 telegram_inbound.py）。要 task 就人手開。
 """
 from datetime import timedelta
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import text
 
@@ -24,10 +31,17 @@ from app.services.calendar_lifecycle_job import (  # noqa: E402
 FOLLOWUP_DELAY_MIN = 30       # event end + 30 min → ask
 FOLLOWUP_WINDOW_HOURS = 24    # user reply window before auto-expire
 
+HK_TZ = ZoneInfo("Asia/Hong_Kong")
 
-import logging
-
-logger = logging.getLogger(__name__)
+# `touchpoints.date` 係 DATE 欄（唔係 timestamptz）⇒ 一定要用「日」比。
+# 舊寫法 `date >= :start`（start 係 event timestamptz）等於攞當日 00:00 同
+# event 時間比 ⇒ 永遠 false ⇒「已記錄就唔問」失效（KB-048）。
+TOUCHPOINT_EXISTS_SQL = (
+    "SELECT id FROM nexus_crm.touchpoints "
+    "WHERE (company_id = :cid OR (company_id IS NULL AND :cid IS NULL)) "
+    "  AND date >= :d_from AND date <= :d_to "
+    "LIMIT 1"
+)
 
 
 async def _event_company_id(db, ev) -> str | None:
@@ -45,22 +59,20 @@ async def _event_company_id(db, ev) -> str | None:
 
 
 async def _touchpoint_exists(db, tenant_id, user_id, ev, company_id: str | None) -> bool:
-    """A touchpoint recorded for this event/company in the event window counts
-    as 'already logged' (user may have added it manually in CRM)."""
+    """Event 當日（start 日 ~ end+30min 日）已經有 touchpoint ⇒ 當已記錄。
+
+    KB-048：一定要落「日」層面比（見 TOUCHPOINT_EXISTS_SQL 註解）。
+    """
+    start = getattr(ev, "start", None)
+    if not start:
+        return False
+    end = getattr(ev, "end", None)
+    d_from = start.astimezone(HK_TZ).date()
+    d_to = (end + timedelta(minutes=FOLLOWUP_DELAY_MIN)).astimezone(HK_TZ).date() if end else d_from
     rows = (
         await db.execute(
-            text(
-                "SELECT id FROM nexus_crm.touchpoints "
-                "WHERE (company_id = :cid OR (company_id IS NULL AND :cid IS NULL)) "
-                "  AND date >= :start AND date <= :window "
-                "LIMIT 1"
-            ),
-            {
-                "cid": company_id,
-                "start": getattr(ev, "start", None),
-                "window": getattr(ev, "end", None) + timedelta(minutes=FOLLOWUP_DELAY_MIN)
-                if getattr(ev, "end", None) else _utcnow(),
-            },
+            text(TOUCHPOINT_EXISTS_SQL),
+            {"cid": company_id, "d_from": d_from, "d_to": d_to},
         )
     ).fetchall()
     return len(rows) > 0
@@ -85,8 +97,10 @@ async def scan_followups(db, tenant_id, user_id, now) -> list[dict]:
 
     Only events that ended within the last 48h are asked about (older ones
     auto-expire below — no spam from historical events).
+
+    資格審查（KB-048）：已取消嘅 event 唔問（Google sync 會將 title 改成
+    "Canceled: …"，表冇 status 欄，所以靠 title）。
     """
-    # Old pending follow-ups (ended > 48h ago) → expired (cleanup, idempotent).
     try:
         await db.execute(
             text(
@@ -110,6 +124,7 @@ async def scan_followups(db, tenant_id, user_id, now) -> list[dict]:
                 "  AND followup_status = 'pending' "
                 "  AND \"end\" + interval '30 minutes' <= :now "
                 "  AND \"end\" >= :recent "
+                "  AND coalesce(title, '') !~* '^\\s*(canceled|cancelled)\\s*:' "
                 "ORDER BY \"end\" LIMIT 10"
             ),
             {"uid": str(user_id), "now": now, "recent": now - timedelta(hours=48)},
@@ -149,41 +164,6 @@ async def ask_followup(db, tenant_id, user_id, ev) -> dict:
         return {"asked": False, "reason": "touchpoint_exists", "company_id": company_id}
 
     body = _compose_ask(ev, company_name)
-
-    # ── Meeting → Task（2026-09-12）──
-    # T+30 engine 以前只係「問用戶」，跟進事項**從來冇入任務清單**（只出 touchpoint 草稿）
-    # → 所以跟進永遠冇人做。呢度補上：由會議建立一張真 Task。
-    # Idempotent（靠 linked_via_signal = event id）→ 重複 scan 都唔會出兩張。
-    task_result = None
-    try:
-        from app.services.meeting_task import create_task_from_meeting
-
-        ws_id = getattr(ev, "workspace_id", None)
-        if not ws_id:
-            ws_id = (
-                await db.execute(
-                    text(
-                        "SELECT id FROM nexus_auth.workspaces "
-                        "WHERE tenant_id = :t ORDER BY created_at LIMIT 1"
-                    ),
-                    {"t": tenant_id},
-                )
-            ).scalar()
-        if ws_id:
-            task_result = await create_task_from_meeting(
-                db,
-                tenant_id=tenant_id,
-                user_id=user_id,
-                workspace_id=ws_id,
-                event_id=ev.id,
-                event_title=getattr(ev, "title", None),
-                company_id=company_id,
-                contact_id=getattr(ev, "contact_id", None),
-            )
-    except Exception:
-        # best-effort：建 task 失敗唔可以斷咗個 follow-up ask
-        logger.exception("meeting_task creation failed (event=%s)", getattr(ev, "id", None))
-
     inapp_ok = await _inapp_notify(
         db, tenant_id, user_id, ev, body, title=f"📝 記錄 Touchpoint：{getattr(ev, 'title', '')}"
     )
@@ -201,6 +181,5 @@ async def ask_followup(db, tenant_id, user_id, ev) -> dict:
     return {
         "asked": True,
         "company_id": company_id,
-        "task": task_result,
         "channels": {"inapp": inapp_ok, "telegram": tg_result},
     }
